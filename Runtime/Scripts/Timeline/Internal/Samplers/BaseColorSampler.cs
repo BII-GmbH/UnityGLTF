@@ -1,4 +1,3 @@
-using JetBrains.Annotations;
 using UnityEngine;
 
 namespace UnityGLTF.Timeline.Samplers
@@ -7,9 +6,9 @@ namespace UnityGLTF.Timeline.Samplers
     {
         private static readonly MaterialPropertyBlock materialPropertyBlock = new MaterialPropertyBlock();
         
-        public override string PropertyName => "weights";
+        public override string PropertyName => "baseColorFactor";
         
-        protected override Material getTarget(Transform transform) => transform.GetComponent<MeshRenderer>()?.sharedMaterial;
+        protected override Material getTarget(Transform transform) => transform.TryGetComponent<MeshRenderer>(out var mr) ? mr.sharedMaterial : null;
 
         protected override Color? getValue(Transform transform, Material target, AnimationData data) {
             var r = transform.GetComponent<Renderer>();

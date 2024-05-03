@@ -302,6 +302,14 @@ namespace UnityGLTF
 
 	                material.PbrMetallicRoughness.BaseColorFactor = materialObj.GetColor("_Color").ToNumericsColorLinear();
                 }
+                // HDRP does not seem to be actively using _Color
+                else if (materialObj.HasProperty("_BaseColor"))
+                {
+	                if (material.PbrMetallicRoughness == null)
+		                material.PbrMetallicRoughness = new PbrMetallicRoughness() { MetallicFactor = 0, RoughnessFactor = 1.0f };
+
+	                material.PbrMetallicRoughness.BaseColorFactor = materialObj.GetColor("_BaseColor").ToNumericsColorLinear();
+                }
                 material.DoubleSided = true;
             }
 

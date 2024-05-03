@@ -65,8 +65,8 @@ namespace UnityGLTF
 			recorder = new GLTFRecorder(
 				exportRoot,
 				recordTransformInWorldSpace: tr => recordRootInWorldSpace && tr == exportRoot,
-				shouldRecordBlendShapes,
-				shouldUseAnimationPointer,
+				recordBlendShapes: shouldRecordBlendShapes,
+				recordAnimationPointer: shouldUseAnimationPointer,
 				recordVisibility: true
 			);
 			

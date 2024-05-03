@@ -6,7 +6,7 @@ namespace UnityGLTF.Timeline.Samplers
     {
         public override string PropertyName => "weights";
         
-        protected override SkinnedMeshRenderer getTarget(Transform transform) => transform.GetComponent<SkinnedMeshRenderer>();
+        protected override SkinnedMeshRenderer getTarget(Transform transform) => transform.TryGetComponent<SkinnedMeshRenderer>(out var smr) ? smr : null;
 
         protected override float[] getValue(Transform transform, SkinnedMeshRenderer target, AnimationData data) {
             if (target.sharedMesh) {
