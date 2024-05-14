@@ -175,6 +175,47 @@ namespace UnityGLTF.Timeline
 			param = recordingAnimatedTransforms;
 		}
 
+		public bool TryEndRecording()
+		{
+			if (!isRecording) return false;
+			if (!hasRecording) return false;
+			isRecording = false;
+			
+			#if UNITY_EDITOR
+			Debug.Log("Gltf Recording saved. "
+				+ "Tracks: " + recordingAnimatedTransforms.Count + ", "
+				+ "Total Keyframes: " + recordingAnimatedTransforms.Sum(x => x.Value.tracks.Sum(y => y.Values.Count())));
+			#endif
+
+			return true;
+		}
+		
+		public GLTFSceneExporter CreateAnimationExporterAfterRecording(GLTFSettings? settings = null) 
+		{
+			if (settings == null)
+			{
+				var adjustedSettings = Object.Instantiate(GLTFSettings.GetOrCreateSettings());
+				adjustedSettings.ExportDisabledGameObjects = true;
+				adjustedSettings.ExportAnimations = false;
+				settings = adjustedSettings;
+			}
+		
+			// ensure correct animation pointer plugin settings are used
+			if (!recordAnimationPointer)
+				settings.ExportPlugins.RemoveAll(x => x is AnimationPointerExport);
+			else
+			if (!settings.ExportPlugins.Any(x => x is AnimationPointerExport))
+				settings.ExportPlugins.Add(ScriptableObject.CreateInstance<AnimationPointerExport>());
+
+			if (!recordBlendShapes)
+				settings.BlendShapeExportProperties = GLTFSettings.BlendShapeExportPropertyFlags.None;
+			
+			var exportContext =
+				new ExportContext(settings) { AfterSceneExport = PostExport, logger = new Logger(new StringBuilderLogHandler()) };
+
+			return new GLTFSceneExporter(new Transform[] { root }, exportContext);
+		}
+
 		public void EndRecording(string filename, string sceneName = "scene", GLTFSettings? settings = null)
 		{
 			if (!isRecording) return;
