@@ -353,9 +353,8 @@ namespace UnityGLTF.Timeline
 				else if (scaleTime < visTime) {
 					// the next scale change occurs sooner than the next visibility change
 					// However, if the model is currently invisible, we simply dont care
-                    if (lastVisible) {
+                    if (lastVisible) 
 	                    record(scaleTime, scale);
-                    }
                     scaleIndex++;
 				}
 
