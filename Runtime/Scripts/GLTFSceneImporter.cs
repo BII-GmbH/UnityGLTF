@@ -346,7 +346,7 @@ namespace UnityGLTF
 			}
 
 			_options = options;
-			VerifyDataLoader();
+			//VerifyDataLoader();
 		}
 
 		private NativeArray<byte> GetOrCreateNativeBuffer(Stream stream)
