@@ -293,7 +293,7 @@ namespace UnityGLTF
 		protected MemoryChecker _memoryChecker;
 
 		protected GameObject _lastLoadedScene;
-		protected readonly GLTFMaterial DefaultMaterial = new GLTFMaterial();
+		protected readonly GLTFMaterial DefaultMaterial;
 		internal MaterialCacheData _defaultLoadedMaterial = null;
 
 		protected string _gltfFileName;
@@ -309,35 +309,15 @@ namespace UnityGLTF
 
 		protected ColorSpace _activeColorSpace; 
 		
-		public GLTFSceneImporter(string gltfFileName, ImportOptions options)
+		public GLTFSceneImporter(string gltfFileName, ImportOptions options) : this(options)
 		{
-			if (options.ImportContext != null)
-			{
-				options.ImportContext.SceneImporter = this;
-			}
-
 			_gltfFileName = gltfFileName;
-			_options = options;
-
-			_activeColorSpace = QualitySettings.activeColorSpace; 
-			
-			if (options.logger != null)
-				Debug = options.logger;
-			else
-				Debug = UnityEngine.Debug.unityLogger;
 
 			VerifyDataLoader();
 		}
 
-		public GLTFSceneImporter(GLTFRoot rootNode, Stream gltfStream, ImportOptions options)
+		public GLTFSceneImporter(GLTFRoot rootNode, Stream gltfStream, ImportOptions options) : this(options)
 		{
-			if (options.ImportContext != null)
-			{
-				options.ImportContext.SceneImporter = this;
-			}
-
-			_activeColorSpace = QualitySettings.activeColorSpace; 
-
 			_gltfRoot = rootNode;
 
 			if (gltfStream != null)
@@ -347,6 +327,34 @@ namespace UnityGLTF
 
 			_options = options;
 			//VerifyDataLoader();
+		}
+
+		private GLTFSceneImporter(ImportOptions options)
+		{
+			if (options.ImportContext != null)
+			{
+				options.ImportContext.SceneImporter = this;
+			}
+			
+			if (options.logger != null)
+				Debug = options.logger;
+			else
+				Debug = UnityEngine.Debug.unityLogger;
+			
+			DefaultMaterial = new GLTFMaterial
+			{
+				Name = "Default",
+				AlphaMode = AlphaMode.OPAQUE,
+				DoubleSided = false,
+				PbrMetallicRoughness = new PbrMetallicRoughness
+				{
+					MetallicFactor = 1, 
+					RoughnessFactor = 1,
+				}
+			};
+			
+			_activeColorSpace = QualitySettings.activeColorSpace; 
+			_options = options;
 		}
 
 		private NativeArray<byte> GetOrCreateNativeBuffer(Stream stream)
