@@ -325,7 +325,6 @@ namespace UnityGLTF
 				_gltfStream = new GLBStream { Stream = gltfStream, StartPosition = gltfStream.Position };
 			}
 
-			_options = options;
 			//VerifyDataLoader();
 		}
 
