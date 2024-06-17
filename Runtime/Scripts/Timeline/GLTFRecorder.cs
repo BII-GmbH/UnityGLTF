@@ -175,7 +175,7 @@ namespace UnityGLTF.Timeline
 			param = recordingAnimatedTransforms;
 		}
 
-		public bool TryEndRecording()
+		public bool TryEndRecordingDirect()
 		{
 			if (!isRecording) return false;
 			if (!hasRecording) return false;
@@ -216,7 +216,7 @@ namespace UnityGLTF.Timeline
 			return new GLTFSceneExporter(new Transform[] { root }, exportContext);
 		}
 
-		public void EndRecording(string filename, string sceneName = "scene", GLTFSettings? settings = null)
+		public void EndRecordingAndSaveToStream(string filename, string sceneName = "scene", GLTFSettings? settings = null)
 		{
 			if (!isRecording) return;
 			if (!hasRecording) return;
@@ -225,15 +225,14 @@ namespace UnityGLTF.Timeline
 			if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
 			using (var filestream = new FileStream(filename, FileMode.Create, FileAccess.Write))
 			{
-				EndRecording(filestream, sceneName, settings);
+				EndRecordingAndSaveToStream(filestream, sceneName, settings);
 			}
 		}
 
-		public void EndRecording(Stream stream, string sceneName = "scene", GLTFSettings? settings = null)
+		public void EndRecordingAndSaveToStream(Stream stream, string sceneName = "scene", GLTFSettings? settings = null)
 		{
-			if (!hasRecording) return;
-			isRecording = false;
-			Debug.Log("Gltf Recording saved. Tracks: " + recordingAnimatedTransforms.Count + ", Total Keyframes: " + recordingAnimatedTransforms.Sum(x => x.Value.tracks.Sum(y => y.Values.Count())));
+			if (!TryEndRecordingDirect()) return;
+			
 			if (settings == null)
 			{
 				var adjustedSettings = Object.Instantiate(GLTFSettings.GetOrCreateSettings());
