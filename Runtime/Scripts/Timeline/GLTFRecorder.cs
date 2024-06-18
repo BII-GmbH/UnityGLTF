@@ -175,7 +175,7 @@ namespace UnityGLTF.Timeline
 			param = recordingAnimatedTransforms;
 		}
 
-		public bool TryEndRecordingDirect()
+		public bool EndRecording()
 		{
 			if (!isRecording) return false;
 			if (!hasRecording) return false;
@@ -232,7 +232,7 @@ namespace UnityGLTF.Timeline
 
 		public void EndRecordingAndSaveToStream(Stream stream, string sceneName = "scene", GLTFSettings? settings = null)
 		{
-			if (!TryEndRecordingDirect()) return;
+			if (!EndRecording()) return;
 			
 			var logHandler = new StringBuilderLogHandler();
 			var exporter = CreateSceneExporterAfterRecording(settings, new Logger(logHandler));
