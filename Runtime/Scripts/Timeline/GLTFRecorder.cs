@@ -190,7 +190,7 @@ namespace UnityGLTF.Timeline
 			return true;
 		}
 		
-		public GLTFSceneExporter CreateAnimationExporterAfterRecording(GLTFSettings? settings = null) 
+		public GLTFSceneExporter CreateSceneExporterAfterRecording(GLTFSettings? settings = null, ILogger? logger = null) 
 		{
 			if (settings == null)
 			{
@@ -199,31 +199,32 @@ namespace UnityGLTF.Timeline
 				adjustedSettings.ExportAnimations = false;
 				settings = adjustedSettings;
 			}
+
+			logger ??= new Logger(new StringBuilderLogHandler());
 		
 			// ensure correct animation pointer plugin settings are used
 			if (!recordAnimationPointer)
 				settings.ExportPlugins.RemoveAll(x => x is AnimationPointerExport);
-			else
-			if (!settings.ExportPlugins.Any(x => x is AnimationPointerExport))
+			else if (!settings.ExportPlugins.Any(x => x is AnimationPointerExport))
 				settings.ExportPlugins.Add(ScriptableObject.CreateInstance<AnimationPointerExport>());
 
 			if (!recordBlendShapes)
 				settings.BlendShapeExportProperties = GLTFSettings.BlendShapeExportPropertyFlags.None;
 			
 			var exportContext =
-				new ExportContext(settings) { AfterSceneExport = PostExport, logger = new Logger(new StringBuilderLogHandler()) };
+				new ExportContext(settings) { AfterSceneExport = PostExport, logger = logger };
 
 			return new GLTFSceneExporter(new Transform[] { root }, exportContext);
 		}
 
-		public void EndRecordingAndSaveToStream(string filename, string sceneName = "scene", GLTFSettings? settings = null)
+		public void EndRecordingAndSaveToFile(string filepath, string sceneName = "scene", GLTFSettings? settings = null)
 		{
 			if (!isRecording) return;
 			if (!hasRecording) return;
 
-			var dir = Path.GetDirectoryName(filename);
+			var dir = Path.GetDirectoryName(filepath);
 			if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
-			using (var filestream = new FileStream(filename, FileMode.Create, FileAccess.Write))
+			using (var filestream = new FileStream(filepath, FileMode.Create, FileAccess.Write))
 			{
 				EndRecordingAndSaveToStream(filestream, sceneName, settings);
 			}
@@ -233,30 +234,8 @@ namespace UnityGLTF.Timeline
 		{
 			if (!TryEndRecordingDirect()) return;
 			
-			if (settings == null)
-			{
-				var adjustedSettings = Object.Instantiate(GLTFSettings.GetOrCreateSettings());
-				adjustedSettings.ExportDisabledGameObjects = true;
-				adjustedSettings.ExportAnimations = false;
-				settings = adjustedSettings;
-			}
-
-			// ensure correct animation pointer plugin settings are used
-			if (!recordAnimationPointer)
-				settings.ExportPlugins.RemoveAll(x => x is AnimationPointerExport);
-			else
-			if (!settings.ExportPlugins.Any(x => x is AnimationPointerExport))
-				settings.ExportPlugins.Add(ScriptableObject.CreateInstance<AnimationPointerExport>());
-
-			if (!recordBlendShapes)
-				settings.BlendShapeExportProperties = GLTFSettings.BlendShapeExportPropertyFlags.None;
-
 			var logHandler = new StringBuilderLogHandler();
-
-			var exportContext =
-				new ExportContext(settings) { AfterSceneExport = PostExport, logger = new Logger(logHandler), };
-
-			var exporter = new GLTFSceneExporter(new Transform[] { root }, exportContext);
+			var exporter = CreateSceneExporterAfterRecording(settings, new Logger(logHandler));
 			exporter.SaveGLBToStream(stream, sceneName);
 
 			logHandler.LogAndClear();

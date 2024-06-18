@@ -80,7 +80,7 @@ namespace UnityGLTF
 		public virtual void StopRecording()
 		{
 			var filename = outputFile.Replace("<Timestamp>", System.DateTime.Now.ToString("yyyyMMdd-HHmmss"));
-			recorder.EndRecordingAndSaveToStream(filename);
+			recorder.EndRecordingAndSaveToFile(filename);
 			recordingEnded?.Invoke(filename);
 		}
 
