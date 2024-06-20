@@ -1024,7 +1024,7 @@ namespace UnityGLTF
 
 			if (ExportNames)
 			{
-				node.Name = nodeTransform.name;
+				node.Name = nodeTransform.name + _root.Nodes.Count;
 			}
 			
 			// TODO think more about how this callback is used – could e.g. be modifying the hierarchy,
