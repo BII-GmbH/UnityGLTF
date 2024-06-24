@@ -1013,6 +1013,14 @@ namespace UnityGLTF
 			};
 		}
 
+		private string makeUniqueNodeName(Transform nodeTransform) 
+		{
+			if (_root.Nodes.Exists(n => n.Name == nodeTransform.name))
+				return nodeTransform.name + _root.Nodes.Count;
+			else
+				return nodeTransform.name;
+		}
+		
 		private NodeId ExportNode(Transform nodeTransform)
 		{
 			if (_exportedTransforms.TryGetValue(nodeTransform.GetInstanceID(), out var existingNodeId))
@@ -1024,7 +1032,7 @@ namespace UnityGLTF
 
 			if (ExportNames)
 			{
-				node.Name = nodeTransform.name;
+				node.Name = makeUniqueNodeName(nodeTransform);
 			}
 			
 			// TODO think more about how this callback is used – could e.g. be modifying the hierarchy,
