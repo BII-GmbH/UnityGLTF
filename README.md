@@ -1,3 +1,9 @@
+# BII-Specific Documentation
+
+Fork made by BII GmbH to primarily improve the GLFT Export from Unity.
+
+Code Reviewers / Fork Owners: https://github.com/Eregerog and https://github.com/wschnepp
+
 # UnityGLTF <!-- omit from toc -->
 
 ![Great coverage of glTF 2.0.](https://img.shields.io/badge/glTF%20Spec-2.0-brightgreen)
