@@ -5,6 +5,8 @@ namespace UnityGLTF
 	public class MetalRough2StandardMap : StandardMap, IMetalRoughUniformMap
 	{
 		private Vector2 baseColorOffset = new Vector2(0, 0);
+		private static readonly int ColorId = Shader.PropertyToID("_Color");
+		private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
 
 		public MetalRough2StandardMap(int MaxLOD = 1000) : base("Standard", null, MaxLOD) { }
 		protected MetalRough2StandardMap(string shaderName, string shaderGuid, int MaxLOD = 1000) : base(shaderName, shaderGuid, MaxLOD) { }
@@ -55,8 +57,23 @@ namespace UnityGLTF
 
 		public virtual Color BaseColorFactor
 		{
-			get { return _material.GetColor("_Color"); }
-			set { _material.SetColor("_Color", value); }
+			get {
+				if (_material.HasProperty("_BaseColor")){
+					return _material.GetColor(BaseColorId);
+				}
+				else if (_material.HasProperty("_Color")) {
+					return _material.GetColor(ColorId);
+				}
+				return Color.white;
+			}
+			set {
+				if (_material.HasProperty("_BaseColor")){
+					_material.SetColor(BaseColorId, value);
+				}
+				else if (_material.HasProperty("_Color")) {
+					_material.SetColor(ColorId, value);
+				}
+			}
 		}
 
 		public virtual Texture MetallicRoughnessTexture
