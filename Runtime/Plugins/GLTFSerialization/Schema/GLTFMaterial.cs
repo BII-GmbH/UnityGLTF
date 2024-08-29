@@ -78,6 +78,13 @@ namespace GLTF.Schema
 		/// lighting equation is evaluated.
 		/// </summary>
 		public bool DoubleSided;
+		
+		/// <summary>
+		/// Specifies the name of the originally used Unity shader.
+		/// It is only used if <see cref="GLTFSceneImporter.UseOriginalUnityShader"/> is true.
+		/// It can be overridden by <see cref="GLTFSceneImporter.CustomShaderName"/>.
+		/// </summary>
+		public string OriginalUnityShaderName;
 
 		public GLTFMaterial()
 		{
@@ -116,6 +123,7 @@ namespace GLTF.Schema
 			AlphaMode = material.AlphaMode;
 			AlphaCutoff = material.AlphaCutoff;
 			DoubleSided = material.DoubleSided;
+			OriginalUnityShaderName = material.OriginalUnityShaderName;
 		}
 
 		public static GLTFMaterial Deserialize(GLTFRoot root, JsonReader reader)
@@ -156,6 +164,9 @@ namespace GLTF.Schema
 						break;
 					case "doubleSided":
 						material.DoubleSided = reader.ReadAsBoolean().Value;
+						break;
+					case "shaderName":
+						material.OriginalUnityShaderName = reader.ReadAsString();
 						break;
 					default:
 						material.DefaultPropertyDeserializer(root, reader);
@@ -227,6 +238,12 @@ namespace GLTF.Schema
 			{
 				writer.WritePropertyName("doubleSided");
 				writer.WriteValue(true);
+			}
+			
+			if (OriginalUnityShaderName != null)
+			{
+				writer.WritePropertyName("shaderName");
+				writer.WriteValue(OriginalUnityShaderName);  
 			}
 
 			base.Serialize(writer);

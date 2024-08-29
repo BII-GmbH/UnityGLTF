@@ -145,6 +145,8 @@ namespace UnityGLTF
 			                       (materialObj.HasProperty("_CullMode") && materialObj.GetInt("_CullMode") == (int)CullMode.Off) ||
 			                       (materialObj.shader.name.EndsWith("-Double")); // workaround for exporting shaders that are set to double-sided on 2020.3
 
+			material.OriginalUnityShaderName = materialObj.shader.name;
+
 			if (materialObj.IsKeywordEnabled("_EMISSION") || materialObj.IsKeywordEnabled("EMISSION") || materialObj.HasProperty("emissiveTexture") || materialObj.HasProperty("_EmissiveTexture"))
 			{
 				// In Gamma space, some materials treat their emissive color inputs differently than in Linear space.

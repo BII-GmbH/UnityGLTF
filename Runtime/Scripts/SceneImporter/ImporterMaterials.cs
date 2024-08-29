@@ -28,6 +28,9 @@ namespace UnityGLTF
 				{
 					mapper = new SpecGlossMap(CustomShaderName, MaximumLod);
 				}
+				else if (UseOriginalUnityShader && !string.IsNullOrEmpty(def.OriginalUnityShaderName)) {
+					mapper = new SpecGlossMap(def.OriginalUnityShaderName, MaximumLod);
+				}
 				else
 				{
 #if UNITY_2021_3_OR_NEWER
@@ -43,6 +46,9 @@ namespace UnityGLTF
 				if (!string.IsNullOrEmpty(CustomShaderName))
 				{
 					mapper = new UnlitMap(CustomShaderName, null, MaximumLod);
+				}
+				else if (UseOriginalUnityShader && !string.IsNullOrEmpty(def.OriginalUnityShaderName)) {
+					mapper = new UnlitMap(def.OriginalUnityShaderName, null, MaximumLod);
 				}
 				else
 				{
@@ -63,6 +69,9 @@ namespace UnityGLTF
 				if (!string.IsNullOrEmpty(CustomShaderName))
 				{
 					mapper = new MetalRoughMap(CustomShaderName, MaximumLod);
+				}
+				else if (UseOriginalUnityShader && !string.IsNullOrEmpty(def.OriginalUnityShaderName)) {
+					mapper = new MetalRoughMap(def.OriginalUnityShaderName, MaximumLod);
 				}
 				else
 				{
