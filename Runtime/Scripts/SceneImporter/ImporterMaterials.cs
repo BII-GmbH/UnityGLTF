@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using GLTF.Schema;
 using UnityEngine;
+using UnityEngine.Rendering.HighDefinition;
 using UnityGLTF.Cache;
 using UnityGLTF.Extensions;
 using UnityGLTF.Plugins;
@@ -715,6 +716,9 @@ namespace UnityGLTF
 			// {
 			// 	MaterialExtensions.ValidateMaterialKeywords(pbrGraphMap.Material);
 			// }
+			
+			HDMaterial.ValidateMaterial(mapper.Material);
+			HDMaterial.ValidateMaterial(vertColorMapper.Material);
 
 			MaterialCacheData materialWrapper = new MaterialCacheData
 			{
