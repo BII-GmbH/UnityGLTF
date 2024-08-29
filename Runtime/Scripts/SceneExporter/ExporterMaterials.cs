@@ -314,6 +314,18 @@ namespace UnityGLTF
                 }
                 material.DoubleSided = true;
             }
+            else if (materialObj.HasProperty("_BaseColorMap"))
+            {
+	            var mainTex = materialObj.GetTexture("_BaseColorMap");
+	            material.PbrMetallicRoughness = new PbrMetallicRoughness()
+	            {
+		            BaseColorFactor = (materialObj.HasProperty("_BaseColor")
+			            ? materialObj.GetColor("_BaseColor")
+			            : Color.white).ToNumericsColorLinear(),
+		            BaseColorTexture = mainTex ? ExportTextureInfo(mainTex, TextureMapType.BaseColor) : null
+	            };
+	            ExportTextureTransform(material.PbrMetallicRoughness.BaseColorTexture, materialObj, "_BaseColorMap");
+            }
 
 			if (materialObj.HasProperty("_OcclusionMap") || materialObj.HasProperty("occlusionTexture") || materialObj.HasProperty("_OcclusionTexture"))
 			{
@@ -667,10 +679,14 @@ namespace UnityGLTF
                 pbr.BaseColorFactor = (material.GetColor("_TintColor") * white).ToNumericsColorLinear() ;
             }
 
-            if (material.HasProperty("_MainTex") || material.HasProperty("_BaseMap") || material.HasProperty("_BaseColorTexture") || material.HasProperty("baseColorTexture")) //TODO if additive particle, render black into alpha
+            if (material.HasProperty("_MainTex") || material.HasProperty("_BaseMap") || material.HasProperty("_BaseColorMap") || material.HasProperty("_BaseColorTexture") || material.HasProperty("baseColorTexture")) //TODO if additive particle, render black into alpha
 			{
 				// TODO use private Material.GetFirstPropertyNameIdByAttribute here, supported from 2020.1+
-				var mainTexPropertyName = material.HasProperty("_BaseMap") ? "_BaseMap" : material.HasProperty("_MainTex") ? "_MainTex" : material.HasProperty("baseColorTexture") ? "baseColorTexture" : "_BaseColorTexture";
+				var mainTexPropertyName = 
+					material.HasProperty("_BaseMap") ? "_BaseMap" : 
+					material.HasProperty("_BaseColorMap") ? "_BaseColorMap" : 
+					material.HasProperty("_MainTex") ? "_MainTex" : 
+					material.HasProperty("baseColorTexture") ? "baseColorTexture" : "_BaseColorTexture";
 				var mainTex = material.GetTexture(mainTexPropertyName);
 
 				if (mainTex)
@@ -855,6 +871,15 @@ namespace UnityGLTF
 					ExportTextureTransform(pbr.BaseColorTexture, material, "_BaseMap");
 				}
 			}
+			else if (material.HasProperty("_BaseColorMap"))
+			{
+				var mainTex = material.GetTexture("_BaseColorMap");
+				if (mainTex)
+				{
+					pbr.BaseColorTexture = ExportTextureInfo(mainTex, TextureMapType.BaseColor);
+					ExportTextureTransform(pbr.BaseColorTexture, material, "_BaseColorMap");
+				}
+			}
 			else if (material.HasProperty("_MainTex"))
 			{
 				var mainTex = material.GetTexture("_MainTex");
@@ -920,6 +945,16 @@ namespace UnityGLTF
 				{
 					diffuseTexture = ExportTextureInfo(mainTex, TextureMapType.BaseColor);
 					ExportTextureTransform(diffuseTexture, materialObj, "_BaseMap");
+				}
+			}
+			else if (materialObj.HasProperty("_BaseColorMap"))
+			{
+				var mainTex = materialObj.GetTexture("_BaseColorMap");
+
+				if (mainTex != null)
+				{
+					diffuseTexture = ExportTextureInfo(mainTex, TextureMapType.BaseColor);
+					ExportTextureTransform(diffuseTexture, materialObj, "_BaseColorMap");
 				}
 			}
 			else if (materialObj.HasProperty("_MainTex"))
