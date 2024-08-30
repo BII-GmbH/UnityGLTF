@@ -325,7 +325,7 @@ namespace UnityGLTF
 					else if (target is Material mat)
 						Debug.Log(LogType.Warning, (object) $"Animated material property {propertyName} does not exist on material {mat}{(mat ? " / shader " + mat.shader : "")}. Will not be exported", mat);
 					else
-						Debug.Log(LogType.Error, (object) $"Curve of animated property has no property type, can not validate {propertyName} on {target}. Will not be exported.", target);
+						Debug.Log(LogType.Warning, (object) $"Curve of animated property has no property type, can not validate {propertyName} on {target}. Will not be exported.", target);
 					return false;
 				}
 
@@ -905,7 +905,7 @@ namespace UnityGLTF
 
 					// Initialize data
 					// Bake and populate animation data
-					float[] times = null;
+					double[] times = null;
 
 					// arbitrary properties require the KHR_animation_pointer extension
 					bool sampledAnimationData = false;
@@ -1317,7 +1317,7 @@ namespace UnityGLTF
 			return curve;
 		}
 
-		private bool BakePropertyAnimation(PropertyCurve prop, float length, float bakingFramerate, float speedMultiplier, out float[] times, out object[] values)
+		private bool BakePropertyAnimation(PropertyCurve prop, float length, float bakingFramerate, float speedMultiplier, out double[] times, out object[] values)
 		{
 			times = null;
 			values = null;
@@ -1328,7 +1328,7 @@ namespace UnityGLTF
 			var nbSamples = Mathf.Max(1, Mathf.CeilToInt(length * bakingFramerate));
 			var deltaTime = length / nbSamples;
 
-			var _times = new List<float>(nbSamples * 2);
+			var _times = new List<double>(nbSamples * 2);
 			var _values = new List<object>(nbSamples * 2);
 
 			var curveCount = prop.curve.Count;
@@ -1530,7 +1530,7 @@ namespace UnityGLTF
 			offset = new Vector2(input.z, 1 - input.w - input.y);
 		}
 
-		private bool ArrayRangeEquals(object[] array, int sectionLength, int lastExportedSectionStart, int prevSectionStart, int sectionStart, int nextSectionStart)
+		private static bool ArrayRangeEquals(object[] array, int sectionLength, int lastExportedSectionStart, int prevSectionStart, int sectionStart, int nextSectionStart)
 		{
 			var equals = true;
 			for (int i = 0; i < sectionLength; i++)
@@ -1544,14 +1544,14 @@ namespace UnityGLTF
 			return true;
 		}
 
-		public void RemoveUnneededKeyframes(ref float[] times, ref object[] values)
+		internal static void RemoveUnneededKeyframes(ref double[] times, ref object[] values)
 		{
 			if (times.Length <= 1)
 				return;
 
 			removeAnimationUnneededKeyframesMarker.Begin();
 
-			var t2 = new List<float>(times.Length);
+			var t2 = new List<double>(times.Length);
 			var v2 = new List<object>(values.Length);
 
 			var arraySize = values.Length / times.Length;

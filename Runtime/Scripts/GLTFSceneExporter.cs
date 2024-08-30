@@ -365,6 +365,7 @@ namespace UnityGLTF
 		private BufferId _bufferId;
 		private GLTFBuffer _buffer;
 		private List<ImageInfo> _imageInfos;
+		private HashSet<string> _imageExportPaths;
 		private List<FileInfo> _fileInfos;
 		private HashSet<string> _fileNames;
 		private List<UniqueTexture> _textures;
@@ -640,6 +641,7 @@ namespace UnityGLTF
 			_fileNames = new HashSet<string>();
 			_exportedMaterials = new Dictionary<int, int>();
 			_textures = new List<UniqueTexture>();
+			_imageExportPaths = new HashSet<string>();
 
 			_buffer = new GLTFBuffer();
 			_bufferId = new BufferId
@@ -1011,6 +1013,14 @@ namespace UnityGLTF
 			};
 		}
 
+		private string makeUniqueNodeName(Transform nodeTransform) 
+		{
+			if (_root.Nodes.Exists(n => n.Name == nodeTransform.name))
+				return nodeTransform.name + _root.Nodes.Count;
+			else
+				return nodeTransform.name;
+		}
+		
 		private NodeId ExportNode(Transform nodeTransform)
 		{
 			if (_exportedTransforms.TryGetValue(nodeTransform.GetInstanceID(), out var existingNodeId))
@@ -1022,7 +1032,7 @@ namespace UnityGLTF
 
 			if (ExportNames)
 			{
-				node.Name = nodeTransform.name;
+				node.Name = makeUniqueNodeName(nodeTransform);
 			}
 			
 			// TODO think more about how this callback is used – could e.g. be modifying the hierarchy,
