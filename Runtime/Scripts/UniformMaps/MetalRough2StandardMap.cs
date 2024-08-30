@@ -5,6 +5,10 @@ namespace UnityGLTF
 	public class MetalRough2StandardMap : StandardMap, IMetalRoughUniformMap
 	{
 		private Vector2 baseColorOffset = new Vector2(0, 0);
+		private static readonly int ColorId = Shader.PropertyToID("_Color");
+		private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+		private static readonly int BaseColorMapId = Shader.PropertyToID("_BaseColorMap");
+		private static readonly int MainTexId = Shader.PropertyToID("_MainTex");
 
 		public MetalRough2StandardMap(int MaxLOD = 1000) : base("Standard", null, MaxLOD) { }
 		protected MetalRough2StandardMap(string shaderName, string shaderGuid, int MaxLOD = 1000) : base(shaderName, shaderGuid, MaxLOD) { }
@@ -12,8 +16,21 @@ namespace UnityGLTF
 
 		public virtual Texture BaseColorTexture
 		{
-			get { return _material.GetTexture("_MainTex"); }
-			set { _material.SetTexture("_MainTex", value); }
+			get { 
+				if (_material.HasProperty("_BaseColorMap")) {
+					return _material.GetTexture(BaseColorMapId);
+				}
+				
+				return _material.GetTexture(MainTexId);
+			}
+			set {
+				if (_material.HasProperty("_BaseColorMap")) {
+					_material.SetTexture(BaseColorMapId, value);
+				}
+				else if (_material.HasProperty("_MainTex")) {
+					_material.SetTexture(MainTexId, value);
+				}
+			}
 		}
 
 		// not implemented by the Standard shader
@@ -28,7 +45,13 @@ namespace UnityGLTF
 			get { return baseColorOffset; }
 			set {
 				baseColorOffset = value;
-				_material.SetTextureOffset("_MainTex", value);
+				
+				if (_material.HasProperty("_BaseColorMap")) {
+					_material.SetTextureOffset(BaseColorMapId, value);
+				}
+				else if (_material.HasProperty("_MainTex")) {
+					_material.SetTextureOffset(MainTexId, value);
+				}
 			}
 		}
 
@@ -40,9 +63,21 @@ namespace UnityGLTF
 
 		public virtual Vector2 BaseColorXScale
 		{
-			get { return _material.GetTextureScale("_MainTex"); }
+			get {
+				if (_material.HasProperty("_BaseColorMap")) {
+					return _material.GetTextureScale(BaseColorMapId);
+				}
+				
+				return _material.GetTextureScale(MainTexId);
+			}
 			set {
-				_material.SetTextureScale("_MainTex", value);
+				if (_material.HasProperty("_BaseColorMap")) {
+					_material.SetTextureScale(BaseColorMapId, value);
+				}
+				else if (_material.HasProperty("_MainTex")) {
+					_material.SetTextureScale(MainTexId, value);
+				}
+				
 				BaseColorXOffset = baseColorOffset;
 			}
 		}
@@ -55,8 +90,23 @@ namespace UnityGLTF
 
 		public virtual Color BaseColorFactor
 		{
-			get { return _material.GetColor("_Color"); }
-			set { _material.SetColor("_Color", value); }
+			get {
+				if (_material.HasProperty("_BaseColor")){
+					return _material.GetColor(BaseColorId);
+				}
+				else if (_material.HasProperty("_Color")) {
+					return _material.GetColor(ColorId);
+				}
+				return Color.white;
+			}
+			set {
+				if (_material.HasProperty("_BaseColor")){
+					_material.SetColor(BaseColorId, value);
+				}
+				else if (_material.HasProperty("_Color")) {
+					_material.SetColor(ColorId, value);
+				}
+			}
 		}
 
 		public virtual Texture MetallicRoughnessTexture

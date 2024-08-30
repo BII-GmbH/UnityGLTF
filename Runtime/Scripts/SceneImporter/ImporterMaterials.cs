@@ -6,6 +6,9 @@ using UnityEngine;
 using UnityGLTF.Cache;
 using UnityGLTF.Extensions;
 using UnityGLTF.Plugins;
+#if HAVE_HDRP
+	using UnityEngine.Rendering.HighDefinition;
+#endif
 
 namespace UnityGLTF
 {
@@ -23,8 +26,11 @@ namespace UnityGLTF
 			if (_gltfRoot.ExtensionsUsed != null && _gltfRoot.ExtensionsUsed.Contains(specGlossExtName) && def.Extensions != null && def.Extensions.ContainsKey(specGlossExtName))
 			{
 				Debug.Log(LogType.Warning, $"KHR_materials_pbrSpecularGlossiness has been deprecated, material {def.Name} may not look correct. Use `gltf-transform metalrough` or other tools to convert to PBR. (File: {_gltfFileName})");
-
-				if (!string.IsNullOrEmpty(CustomShaderName))
+				
+				if (UseOriginalUnityShader && !string.IsNullOrEmpty(def.OriginalUnityShaderName)) {
+					mapper = new SpecGlossMap(def.OriginalUnityShaderName, MaximumLod);
+				}
+				else if (!string.IsNullOrEmpty(CustomShaderName))
 				{
 					mapper = new SpecGlossMap(CustomShaderName, MaximumLod);
 				}
@@ -40,9 +46,12 @@ namespace UnityGLTF
 			}
 			else if (_gltfRoot.ExtensionsUsed != null && _gltfRoot.ExtensionsUsed.Contains(unlitExtName) && def.Extensions != null && def.Extensions.ContainsKey(unlitExtName))
 			{
-				if (!string.IsNullOrEmpty(CustomShaderName))
+				if (UseOriginalUnityShader && !string.IsNullOrEmpty(def.OriginalUnityShaderName)) {
+					mapper = new UnlitMap(def.OriginalUnityShaderName, null, MaximumLod);
+				}
+				else if (!string.IsNullOrEmpty(CustomShaderName))
 				{
-					mapper = new UnlitMap(CustomShaderName, null, MaximumLod);
+					mapper = new MetalRoughMap(CustomShaderName, MaximumLod);
 				}
 				else
 				{
@@ -60,7 +69,10 @@ namespace UnityGLTF
 			}
 			else
 			{
-				if (!string.IsNullOrEmpty(CustomShaderName))
+				if (UseOriginalUnityShader && !string.IsNullOrEmpty(def.OriginalUnityShaderName)) {
+					mapper = new MetalRoughMap(def.OriginalUnityShaderName, MaximumLod);
+				}
+				else if (!string.IsNullOrEmpty(CustomShaderName))
 				{
 					mapper = new MetalRoughMap(CustomShaderName, MaximumLod);
 				}
@@ -706,6 +718,11 @@ namespace UnityGLTF
 			// {
 			// 	MaterialExtensions.ValidateMaterialKeywords(pbrGraphMap.Material);
 			// }
+			
+#if HAVE_HDRP
+			HDMaterial.ValidateMaterial(mapper.Material);
+			HDMaterial.ValidateMaterial(vertColorMapper.Material);
+#endif
 
 			MaterialCacheData materialWrapper = new MaterialCacheData
 			{
