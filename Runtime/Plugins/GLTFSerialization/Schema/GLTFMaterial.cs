@@ -84,7 +84,7 @@ namespace GLTF.Schema
 		/// <summary>
 		/// Specifies the name of the originally used Unity shader.
 		/// It is only used if <see cref="GLTFSceneImporter.UseOriginalUnityShader"/> is true.
-		/// It can be overridden by <see cref="GLTFSceneImporter.CustomShaderName"/>.
+		/// It cannot be overridden by <see cref="GLTFSceneImporter.CustomShaderName"/>.
 		/// </summary>
 		public string OriginalUnityShaderName;
 
