@@ -259,7 +259,7 @@ namespace UnityGLTF.Plugins
         {
             var baseColor = new MaterialPointerPropertyMap(MaterialPointerPropertyMap.PropertyTypeOption.SRGBColor)
             {
-                PropertyNames = new[] { "_Color", "_BaseColor", "_BaseColorFactor", "baseColorFactor" },
+                PropertyNames = new[] { "_BaseColor", "_Color", "_BaseColorFactor", "baseColorFactor" },
                 GltfPropertyName = "pbrMetallicRoughness/baseColorFactor",
             };
             AddMap(baseColor);
