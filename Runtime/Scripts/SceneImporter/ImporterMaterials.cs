@@ -3,10 +3,12 @@ using System.Linq;
 using System.Threading.Tasks;
 using GLTF.Schema;
 using UnityEngine;
-using UnityEngine.Rendering.HighDefinition;
 using UnityGLTF.Cache;
 using UnityGLTF.Extensions;
 using UnityGLTF.Plugins;
+#if UNITY_PIPELINE_HDRP
+	using UnityEngine.Rendering.HighDefinition;
+#endif
 
 namespace UnityGLTF
 {
@@ -717,8 +719,10 @@ namespace UnityGLTF
 			// 	MaterialExtensions.ValidateMaterialKeywords(pbrGraphMap.Material);
 			// }
 			
+#if UNITY_PIPELINE_HDRP
 			HDMaterial.ValidateMaterial(mapper.Material);
 			HDMaterial.ValidateMaterial(vertColorMapper.Material);
+#endif
 
 			MaterialCacheData materialWrapper = new MaterialCacheData
 			{
