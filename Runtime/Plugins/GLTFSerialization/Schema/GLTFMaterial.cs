@@ -1,6 +1,7 @@
 using GLTF.Extensions;
 using GLTF.Math;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace GLTF.Schema
 {
@@ -165,13 +166,14 @@ namespace GLTF.Schema
 					case "doubleSided":
 						material.DoubleSided = reader.ReadAsBoolean().Value;
 						break;
-					case "shaderName":
-						material.OriginalUnityShaderName = reader.ReadAsString();
-						break;
 					default:
 						material.DefaultPropertyDeserializer(root, reader);
 						break;
 				}
+			}
+
+			if (material.Extras["shaderName"] is JValue shaderName) {
+				material.OriginalUnityShaderName = shaderName.Value<string>();
 			}
 
 			return material;
@@ -242,8 +244,11 @@ namespace GLTF.Schema
 			
 			if (OriginalUnityShaderName != null)
 			{
+				writer.WritePropertyName("extras");
+				writer.WriteStartObject();
 				writer.WritePropertyName("shaderName");
 				writer.WriteValue(OriginalUnityShaderName);  
+				writer.WriteEndObject();
 			}
 
 			base.Serialize(writer);
