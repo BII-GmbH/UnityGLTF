@@ -6,7 +6,7 @@ using UnityEngine;
 using UnityGLTF.Cache;
 using UnityGLTF.Extensions;
 using UnityGLTF.Plugins;
-#if UNITY_PIPELINE_HDRP
+#if HAVE_HDRP
 	using UnityEngine.Rendering.HighDefinition;
 #endif
 
@@ -719,7 +719,7 @@ namespace UnityGLTF
 			// 	MaterialExtensions.ValidateMaterialKeywords(pbrGraphMap.Material);
 			// }
 			
-#if UNITY_PIPELINE_HDRP
+#if HAVE_HDRP
 			HDMaterial.ValidateMaterial(mapper.Material);
 			HDMaterial.ValidateMaterial(vertColorMapper.Material);
 #endif
