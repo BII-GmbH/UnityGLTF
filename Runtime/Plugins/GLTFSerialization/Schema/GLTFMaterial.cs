@@ -1,3 +1,4 @@
+using System.Linq;
 using GLTF.Extensions;
 using GLTF.Math;
 using Newtonsoft.Json;
@@ -172,7 +173,9 @@ namespace GLTF.Schema
 				}
 			}
 
-			if (material.Extras["shaderName"] is JValue shaderName) {
+			if (material.Extras is not null && 
+				material.Extras.Contains("shaderName") && 
+				material.Extras["shaderName"] is JValue shaderName) {
 				material.OriginalUnityShaderName = shaderName.Value<string>();
 			}
 
