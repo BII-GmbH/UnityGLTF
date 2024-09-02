@@ -3,6 +3,7 @@
 Fork made by BII GmbH to primarily improve the GLFT Export from Unity.
 
 Code Reviewers / Fork Owners: https://github.com/Eregerog and https://github.com/wschnepp
+Note: If any other BII GmbH repository uses changes made in this repository, these changes should be reviewed, merged and tagged before the changes made in the other repository are merged.
 
 # UnityGLTF <!-- omit from toc -->
 
