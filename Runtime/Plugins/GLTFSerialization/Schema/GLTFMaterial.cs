@@ -175,7 +175,7 @@ namespace GLTF.Schema
 
 			if (material.Extras is JObject extras && 
 				extras.ContainsKey("shaderName") && 
-				extras["shaderName"] is JValue shaderName) {
+				extras["shaderName"] is JValue { Type: JTokenType.String } shaderName) {
 				material.OriginalUnityShaderName = shaderName.Value<string>();
 			}
 
