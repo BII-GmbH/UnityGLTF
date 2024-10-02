@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Profiling;
 using UnityGLTF.Timeline.Samplers;
 
 namespace UnityGLTF.Timeline
@@ -44,6 +45,7 @@ namespace UnityGLTF.Timeline
         }
 
         public void Update(double time) {
+            Profiler.BeginSample("AnimationData.Update");
             visibilityTrack?.SampleIfChanged(time);
             // if visibility is not being sampled, or the object is currently visible, sample the other tracks
             if (visibilityTrack == null || visibilityTrack.lastValue) {
@@ -51,6 +53,7 @@ namespace UnityGLTF.Timeline
                     track.SampleIfChanged(time);
                 }    
             }
+            Profiler.EndSample();
         }
     }
 }

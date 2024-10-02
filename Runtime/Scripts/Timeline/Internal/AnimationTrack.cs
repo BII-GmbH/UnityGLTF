@@ -2,6 +2,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
+using Unity.Profiling;
 using Object = UnityEngine.Object;
 
 namespace UnityGLTF.Timeline
@@ -44,6 +46,7 @@ namespace UnityGLTF.Timeline
             this.sampler = plan;
             samples = new Dictionary<double, TData>();
             SampleIfChanged(time);
+            recordSampleIfChangedMarker = new ProfilerMarker($"{this.GetType().Name} - recordSampleIfChanged"); 
         }
 
         protected BaseAnimationTrack(AnimationData tr, AnimationSampler<TObject, TData> plan, double time, Func<TData?, TData?> overrideInitialValueFunc) {
@@ -54,8 +57,11 @@ namespace UnityGLTF.Timeline
         }
         
         public void SampleIfChanged(double time) => recordSampleIfChanged(time, sampler.sample(animationData));
+
+        private readonly ProfilerMarker recordSampleIfChangedMarker;
         
         protected void recordSampleIfChanged(double time, TData? value) {
+            using var _ = recordSampleIfChangedMarker.Auto();
             if (value == null || (value is Object o && !o)) return;
             // As a memory optimization we want to be able to skip identical samples.
             // But, we cannot always skip samples when they are identical to the previous one - otherwise cases like this break:

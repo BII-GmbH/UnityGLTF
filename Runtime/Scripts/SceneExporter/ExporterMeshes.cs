@@ -44,6 +44,7 @@ namespace UnityGLTF
 
 		private static List<UniquePrimitive> GetUniquePrimitivesFromGameObjects(IEnumerable<GameObject> primitives)
 		{
+			using var _ = collectPrimitivesMarker.Auto();
 			var primKeys = new List<UniquePrimitive>();
 
 			foreach (var prim in primitives)
@@ -67,7 +68,6 @@ namespace UnityGLTF
 				if (!meshObj)
 				{
 					Debug.LogWarning($"MeshFilter.sharedMesh on GameObject:{prim.name} is missing, skipping", prim);
-					exportPrimitiveMarker.End();
 					return null;
 				}
 
@@ -99,12 +99,10 @@ namespace UnityGLTF
 						if (Application.isPlaying)
 						{
 							Debug.LogWarning(null, $"The mesh {meshObj.name} is not readable. Skipping", meshObj);
-							exportPrimitiveMarker.End();
 						}
 						else
 						{
 							Debug.LogError(null, $"The mesh {meshObj.name} is not readable and you decided to cancel the export. Canceling", meshObj);
-							exportPrimitiveMarker.End();
 							throw new OperationCanceledException($"Canceled export because a mesh ({meshObj}) is not readable.");
 						}
 						return null;
@@ -116,7 +114,7 @@ namespace UnityGLTF
 				if (Application.isPlaying && !MeshIsReadable(meshObj))
 				{
 					Debug.LogWarning($"The mesh {meshObj.name} is not readable. Skipping", null);
-					exportPrimitiveMarker.End();
+					collectPrimitivesMarker.End();
 					return null;
 				}
 
@@ -126,7 +124,6 @@ namespace UnityGLTF
 				if(!renderer && !smr)
 				{
 					Debug.LogWarning("GameObject does have neither renderer nor SkinnedMeshRenderer! " + prim.name, prim);
-					exportPrimitiveMarker.End();
 					return null;
 				}
 
@@ -139,7 +136,6 @@ namespace UnityGLTF
 
 				primKeys.Add(primKey);
 			}
-
 			return primKeys;
 		}
 

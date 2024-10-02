@@ -10,6 +10,7 @@ using GLTF.Schema;
 using JetBrains.Annotations;
 using Unity.Profiling;
 using UnityEngine;
+using UnityEngine.Profiling;
 using UnityGLTF.Timeline.Samplers;
 using UnityGLTF.Plugins;
 using Object = UnityEngine.Object;
@@ -53,6 +54,9 @@ namespace UnityGLTF.Timeline
 		private Transform root;
 		private Dictionary<Transform, AnimationData> recordingAnimatedTransforms = new Dictionary<Transform, AnimationData>(64);
 
+		// this is a cache for the otherwise very allocation-heavy GetComponentsInChildren calls for every frame while recording
+		private readonly List<Transform> transformCache = new List<Transform>();
+		
 		private readonly AnimationSamplers animationSamplers;
 
 		private double startTime;
@@ -125,19 +129,24 @@ namespace UnityGLTF.Timeline
 		{
 			startTime = time;
 			lastRecordedTime = 0;
-			var transforms = root.GetComponentsInChildren<Transform>(true);
+			
+			root.GetComponentsInChildren<Transform>(true, transformCache);
 			recordingAnimatedTransforms.Clear();
 
-			foreach (var tr in transforms)
+			foreach (var tr in transformCache)
 			{
 				if (!allowRecordingTransform(tr)) continue;
 				recordingAnimatedTransforms.Add(tr, new AnimationData(animationSamplers, tr, lastRecordedTime));
 			}
+			transformCache.Clear();
 
 			isRecording = true;
 			hasRecording = true;
 		}
 
+		private static readonly ProfilerMarker updateRecordingSingleIterationMarker = new ProfilerMarker("Update Recording - Single Iteration");
+		
+		
 		public void UpdateRecording(double time)
 		{
 			if (!isRecording)
@@ -152,18 +161,23 @@ namespace UnityGLTF.Timeline
 			}
 
 			var timeSinceStart = time - startTime;
-			var trs = root.GetComponentsInChildren<Transform>(true);
-			foreach (var tr in trs)
-			{
+			
+			root.GetComponentsInChildren<Transform>(true, transformCache);
+			foreach (var tr in transformCache) {
+				using var _ = updateRecordingSingleIterationMarker.Auto();
+				
 				if (!allowRecordingTransform(tr)) continue;
 				if (!recordingAnimatedTransforms.ContainsKey(tr))
 				{
+					Profiler.BeginSample("Update Recording - Add New Transform");
 					// insert "empty" frame with scale=0,0,0 because this object might have just appeared in this frame
 					var emptyData = new AnimationData(animationSamplers, tr, lastRecordedTime);
 					recordingAnimatedTransforms.Add(tr, emptyData);
+					Profiler.EndSample();
 				}
 				recordingAnimatedTransforms[tr].Update(timeSinceStart);
 			}
+			transformCache.Clear();
 
 			lastRecordedTime = time;
 		}
@@ -187,6 +201,9 @@ namespace UnityGLTF.Timeline
 				+ "Total Keyframes: " + recordingAnimatedTransforms.Sum(x => x.Value.tracks.Sum(y => y.Values.Count())));
 			#endif
 
+			// release any excess memory of the cache as fast as we can
+			transformCache.Clear();
+			transformCache.TrimExcess();
 			return true;
 		}
 		
@@ -297,7 +314,12 @@ namespace UnityGLTF.Timeline
 						trackTimes = mergedTimes;
 						trackValues = mergedScales.Cast<object>().ToArray();
 					}
-					OnBeforeAddAnimationData?.Invoke(new PostAnimationData(animatedObject, trackName, trackTimes, trackValues));
+
+					if (OnBeforeAddAnimationData != null) {
+						OnBeforeAddAnimationData.Invoke(
+							new PostAnimationData(animatedObject, trackName, trackTimes, trackValues)
+						);
+					}
 
 					if (calculateTranslationBounds && track.PropertyName == "translation") {
 						

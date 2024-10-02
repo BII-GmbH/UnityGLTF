@@ -15,8 +15,10 @@ using System.Text.RegularExpressions;
 using GLTF.Schema;
 using Unity.Profiling;
 using UnityEngine;
+using UnityEngine.Profiling;
 using UnityGLTF.Extensions;
 using UnityGLTF.Plugins;
+using Sampler = GLTF.Schema.Sampler;
 
 namespace UnityGLTF
 {
@@ -503,6 +505,7 @@ namespace UnityGLTF
 		private static ProfilerMarker gltfSerializationMarker = new ProfilerMarker("Serialize exported data");
 		private static ProfilerMarker exportMeshMarker = new ProfilerMarker("Export Mesh");
 		private static ProfilerMarker exportPrimitiveMarker = new ProfilerMarker("Export Primitive");
+		private static ProfilerMarker collectPrimitivesMarker = new ProfilerMarker("Collect Primitives");
 		private static ProfilerMarker exportBlendShapeMarker = new ProfilerMarker("Export BlendShape");
 		private static ProfilerMarker exportSkinFromNodeMarker = new ProfilerMarker("Export Skin");
 		private static ProfilerMarker exportSparseAccessorMarker = new ProfilerMarker("Export Sparse Accessor");
@@ -1044,31 +1047,40 @@ namespace UnityGLTF
 				plugin?.BeforeNodeExport(this, _root, nodeTransform, node);
 			beforeNodeExportMarker.End();
 
-#if ANIMATION_SUPPORTED
+			Profiler.BeginSample("Animation Export");
+			#if ANIMATION_SUPPORTED
 			if (nodeTransform.GetComponent<Animation>() || nodeTransform.GetComponent<Animator>())
 			{
 				_animatedNodes.Add(nodeTransform);
 			}
-#endif
+			#endif
+			Profiler.EndSample();
+			Profiler.BeginSample("Skinned Mesh Export");
 			if (nodeTransform.GetComponent<SkinnedMeshRenderer>() && ContainsValidRenderer(nodeTransform.gameObject, settings.ExportDisabledGameObjects))
 			{
 				_skinnedNodes.Add(nodeTransform);
 			}
+			Profiler.EndSample();
 
+			Profiler.BeginSample("Export Camera");
 			// export camera attached to node
 			Camera unityCamera = nodeTransform.GetComponent<Camera>();
 			if (unityCamera != null && unityCamera.enabled)
 			{
 				node.Camera = ExportCamera(unityCamera);
 			}
-
+			Profiler.EndSample();
+			
+			Profiler.BeginSample("Light Punctual Export");
 			var lightPluginEnabled = _plugins.FirstOrDefault(x => x is LightsPunctualExportContext) != null;
 			Light unityLight = nodeTransform.GetComponent<Light>();
 			if (unityLight != null && unityLight.enabled && lightPluginEnabled)
 			{
 				node.Light = ExportLight(unityLight);
 			}
-
+			Profiler.EndSample();
+			
+			Profiler.BeginSample("Export Transform");
 			var needsInvertedLookDirection = unityLight || unityCamera;
             if (needsInvertedLookDirection)
             {
@@ -1078,7 +1090,8 @@ namespace UnityGLTF
             {
                 node.SetUnityTransform(nodeTransform, false);
             }
-
+			Profiler.EndSample();
+			
             var id = new NodeId
 			{
 				Id = _root.Nodes.Count,
@@ -1090,16 +1103,20 @@ namespace UnityGLTF
 
 			_root.Nodes.Add(node);
 
+			Profiler.BeginSample("Filter Primitives");
 			// children that are primitives get put in a mesh
 			FilterPrimitives(nodeTransform, out GameObject[] primitives, out GameObject[] nonPrimitives);
+			Profiler.EndSample();
 			if (primitives.Length > 0)
 			{
 				var uniquePrimitives = GetUniquePrimitivesFromGameObjects(primitives);
 				if (uniquePrimitives != null)
 				{
 					node.Mesh = ExportMesh(nodeTransform.name, uniquePrimitives);
+					Profiler.BeginSample("Register Primitives With Node");
 					RegisterPrimitivesWithNode(node, uniquePrimitives);
-
+					Profiler.EndSample();
+					
 					// Node - BlendShape Weights 
 					if (uniquePrimitives[0].SkinnedMeshRenderer)
 					{
@@ -1109,6 +1126,7 @@ namespace UnityGLTF
 						// Because the weights already exported into the GltfMesh
 						if (smr && meshObj && _meshToBlendShapeAccessors.TryGetValue(meshObj, out var data) && smr != data.firstSkinnedMeshRenderer)
 						{
+							Profiler.BeginSample("Export Skinned Mesh Weights");
 							var blendShapeWeights = GetBlendShapeWeights(smr, meshObj);
 							if (blendShapeWeights != null)
 							{
@@ -1123,6 +1141,7 @@ namespace UnityGLTF
 										node.Weights = blendShapeWeights;
 								}
 							}
+							Profiler.EndSample();
 						}
 					}
 				}
