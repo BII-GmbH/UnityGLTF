@@ -19,16 +19,43 @@ namespace UnityGLTF.Timeline
 {
 	public class GLTFRecorder
 	{
+		public sealed class Factory
+		{
+			private readonly List<AnimationSampler> customAnimationSamplers = new();
+
+			public Factory AddCustomAnimationSampler<TComponent, TData>(CustomComponentAnimationSampler<TComponent, TData> sampler)
+			where TComponent : Component {
+				customAnimationSamplers.Add(new CustomAnimationSamplerWrapper<TComponent, TData>(sampler));
+				return this;
+			}
+
+			public GLTFRecorder Create(
+				Transform root,
+				Func<Transform, bool> recordTransformInWorldSpace,
+				bool recordBlendShapes = true,
+				bool recordAnimationPointer = false,
+				bool recordVisibility = false
+			) => new(
+				root,
+				recordTransformInWorldSpace,
+				recordBlendShapes,
+				recordAnimationPointer,
+				recordVisibility,
+				customAnimationSamplers
+			);
+		}
+	
+		
 		private readonly bool recordBlendShapes;
 		private readonly bool recordAnimationPointer;
 		
-		public GLTFRecorder(
+		internal GLTFRecorder(
 			Transform root,
 			Func<Transform, bool> recordTransformInWorldSpace,
 			bool recordBlendShapes = true,
 			bool recordAnimationPointer = false,
 			bool recordVisibility = false,
-			IEnumerable<CustomComponentAnimationSampler>? additionalSamplers = null
+			IEnumerable<AnimationSampler>? additionalSamplers = null
 		) {
 			if (!root)
 				throw new ArgumentNullException(nameof(root), "Please provide a root transform to record.");
@@ -38,7 +65,7 @@ namespace UnityGLTF.Timeline
 				recordVisibility,
 				recordBlendShapes,
 				recordAnimationPointer,
-				additionalSamplers?.Select(customSampler => new CustomAnimationSamplerWrapper(customSampler))
+				additionalSamplers
 			);
 			this.root = root;
 			this.recordBlendShapes = recordBlendShapes;
@@ -146,9 +173,43 @@ namespace UnityGLTF.Timeline
 
 		private static readonly ProfilerMarker updateRecordingSingleIterationMarker = new ProfilerMarker("Update Recording - Single Iteration");
 		
-		
+		/// <summary>
+		/// Update the recorded state that will be saved as gltf animations for all transforms under the root transform of the recording.
+		/// </summary>
+		/// <param name="time">time to record at</param>
+		/// <exception cref="InvalidOperationException">thrown if the recorder is not recording when this is called</exception>
 		public void UpdateRecording(double time)
 		{
+			Profiler.BeginSample("Get Transforms");
+			root.GetComponentsInChildren(true, transformCache);
+			Profiler.EndSample();
+			updateRecording(time, transformCache);
+			Profiler.BeginSample("Clear Transform Cache");
+			transformCache.Clear();
+			Profiler.EndSample();
+		}
+		
+		/// <summary>
+		/// Very similar to <see cref="UpdateRecording"/>, but only updates the recorded state for the transforms passed in
+		/// </summary>
+		/// <param name="time">time to record at</param>
+		/// <param name="transforms">the transforms for which to update the recorded state</param>
+		/// <exception cref="InvalidOperationException">thrown if the recorder is not recording when this is called or if any of the transforms passed
+		/// in is not parented directly or indirectly to the root</exception>
+		public void UpdateRecordingFor(double time, IReadOnlyList<Transform> transforms) {
+			Profiler.BeginSample("Check transforms are parented properly");
+			foreach (var transform in transforms) {
+				if (!transform.IsChildOf(root))
+					throw new InvalidOperationException(
+						"A transform passed in for recording is not parented to the recording root transform. This is not allowed"
+					);
+			}
+			Profiler.EndSample();
+
+			updateRecording(time, transforms);
+		}
+
+		private void updateRecording(double time, IReadOnlyList<Transform> transforms) {
 			if (!isRecording)
 			{
 				throw new InvalidOperationException($"{nameof(GLTFRecorder)} isn't recording, but {nameof(UpdateRecording)} was called. This is invalid.");
@@ -161,10 +222,7 @@ namespace UnityGLTF.Timeline
 			}
 
 			var timeSinceStart = time - startTime;
-			Profiler.BeginSample("Get Transforms");
-			root.GetComponentsInChildren<Transform>(true, transformCache);
-			Profiler.EndSample();
-			foreach (var tr in transformCache) {
+			foreach (var tr in transforms) {
 				using var _ = updateRecordingSingleIterationMarker.Auto();
 				
 				if (!allowRecordingTransform(tr)) continue;
@@ -178,10 +236,6 @@ namespace UnityGLTF.Timeline
 				}
 				recordingAnimatedTransforms[tr].Update(timeSinceStart);
 			}
-			Profiler.BeginSample("Clear Transform Cache");
-			transformCache.Clear();
-			Profiler.EndSample();
-
 			lastRecordedTime = time;
 		}
 		
