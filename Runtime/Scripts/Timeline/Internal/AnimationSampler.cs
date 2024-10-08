@@ -73,33 +73,36 @@ namespace UnityGLTF.Timeline
         public abstract string PropertyName { get; }
         public Type dataType => typeof(TData);
 
+        public abstract IEqualityComparer<TData> DataComparer { get; }
+        
         public object? Sample(AnimationData data) => sample(data);
 
         public Object? GetTarget(Transform transform) => getTarget(transform);
         protected abstract TObject? getTarget(Transform transform);
-        protected abstract TData? getValue(Transform transform, TObject target, AnimationData data);
+        public abstract TData? GetValue(Transform transform, TObject target, AnimationData data);
 
         internal TData? sample(AnimationData data) {
             var target = getTarget(data.transform);
-            return target != null ? getValue(data.transform, target, data) : default;
+            return target != null ? GetValue(data.transform, target, data) : default;
         }
         
         public AnimationTrack StartNewAnimationTrackAt(AnimationData data, double time) =>
-            new AnimationTrack<TObject, TData>(data, this, time);
+            new AnimationTrack<TObject, TData>(data, this, time, DataComparer);
     }
 
-    internal sealed class CustomAnimationSamplerWrapper : AnimationSampler<Component, object?>
+    internal sealed class CustomAnimationSamplerWrapper<TComponent, TData> : AnimationSampler<TComponent, TData> where TComponent : Component
     {
 
         public override string PropertyName => customSampler.PropertyName;
+        public override IEqualityComparer<TData> DataComparer => customSampler.EqualityComparer;
 
-        protected override Component? getTarget(Transform transform) => customSampler.GetTarget(transform);
+        protected override TComponent? getTarget(Transform transform) => customSampler.getTarget(transform);
 
-        protected override object? getValue(Transform transform, Component target, AnimationData data) =>
+        public override TData? GetValue(Transform transform, TComponent target, AnimationData data) =>
             customSampler.GetValue(transform, target);
 
-        private readonly CustomComponentAnimationSampler customSampler;
-        public CustomAnimationSamplerWrapper(CustomComponentAnimationSampler customSampler) => this.customSampler = customSampler;
+        private readonly CustomComponentAnimationSampler<TComponent, TData> customSampler;
+        public CustomAnimationSamplerWrapper(CustomComponentAnimationSampler<TComponent, TData> customSampler) => this.customSampler = customSampler;
 
     }
 }

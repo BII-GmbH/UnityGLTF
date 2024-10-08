@@ -55,7 +55,7 @@ namespace UnityGLTF.Timeline
             visibilityTrack?.SampleIfChanged(time);
             visibilityUpdate.End();
             // if visibility is not being sampled, or the object is currently visible, sample the other tracks
-            if (visibilityTrack == null || visibilityTrack.lastValue.Visible) {
+            if (visibilityTrack == null || visibilityTrack.lastValue) {
                 otherTracks.Begin();
                 foreach (var track in tracks) {
                     track.SampleIfChanged(time);

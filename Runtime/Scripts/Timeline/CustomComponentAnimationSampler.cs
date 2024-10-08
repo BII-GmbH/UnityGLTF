@@ -1,14 +1,15 @@
 #nullable enable
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace UnityGLTF.Timeline
 {
+    /// Do not implement directly. This is only used as a super-interface to store different instantiations of
+    /// <see cref="CustomComponentAnimationSampler{TComponent,TData}"/> in the same data structure without generic type
     public interface CustomComponentAnimationSampler
     {
         public string PropertyName { get; }
-        
         internal Component? GetTarget(Transform transform);
-        internal object? GetValue(Transform transform, Component target);
     }
     
     /// <summary>
@@ -20,14 +21,12 @@ namespace UnityGLTF.Timeline
         where TComponent : UnityEngine.Component
     {
         Component? CustomComponentAnimationSampler.GetTarget(Transform transform) => getTarget(transform);
-
-        object? CustomComponentAnimationSampler.GetValue(Transform transform, Component target) => 
-            target is TComponent tcomp ? getValue(transform, tcomp) : null;
-
+        public IEqualityComparer<TData> EqualityComparer { get; }
+        
         /// While sampling, gets the target of the animation from a transform
         /// <param name="transform"></param>
         /// <returns>get the target of the animation, or null if it is not found</returns>
-        protected TComponent? getTarget(Transform transform);
+        protected internal TComponent? getTarget(Transform transform);
         
         /// <summary>
         /// get the value the animation is changing., or null if it is not present
@@ -35,6 +34,6 @@ namespace UnityGLTF.Timeline
         /// <param name="transform">the transform the animation applies to</param>
         /// <param name="target">the component the animation applies to</param>
         /// <returns>value of the animated property. If there is no value at a specific time, should return null (<see cref="TData"/> may need to be nullable in this case)</returns>
-        protected TData? getValue(Transform transform, TComponent target);
+        public TData? GetValue(Transform transform, TComponent target);
     }
 }

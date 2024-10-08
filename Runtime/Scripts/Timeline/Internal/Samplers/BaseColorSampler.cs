@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace UnityGLTF.Timeline.Samplers
@@ -7,7 +8,8 @@ namespace UnityGLTF.Timeline.Samplers
         private static readonly MaterialPropertyBlock materialPropertyBlock = new MaterialPropertyBlock();
         
         public override string PropertyName => "baseColorFactor";
-        
+        public override IEqualityComparer<Color?> DataComparer => EqualityComparer<Color?>.Default;
+
         protected override Material getTarget(Transform transform) =>
             transform.TryGetComponent<MeshRenderer>(out var mr)
                 ? mr.sharedMaterial
@@ -15,7 +17,7 @@ namespace UnityGLTF.Timeline.Samplers
                     ? smr.sharedMaterial
                     : null;
 
-        protected override Color? getValue(Transform transform, Material target, AnimationData data) {
+        public override Color? GetValue(Transform transform, Material target, AnimationData data) {
             
             if (target) {
                 if (target.HasProperty("_BaseColor")) return target.GetColor("_BaseColor");
