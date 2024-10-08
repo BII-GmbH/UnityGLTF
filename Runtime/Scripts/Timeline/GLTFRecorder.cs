@@ -161,8 +161,9 @@ namespace UnityGLTF.Timeline
 			}
 
 			var timeSinceStart = time - startTime;
-			
+			Profiler.BeginSample("Get Transforms");
 			root.GetComponentsInChildren<Transform>(true, transformCache);
+			Profiler.EndSample();
 			foreach (var tr in transformCache) {
 				using var _ = updateRecordingSingleIterationMarker.Auto();
 				
@@ -177,7 +178,9 @@ namespace UnityGLTF.Timeline
 				}
 				recordingAnimatedTransforms[tr].Update(timeSinceStart);
 			}
+			Profiler.BeginSample("Clear Transform Cache");
 			transformCache.Clear();
+			Profiler.EndSample();
 
 			lastRecordedTime = time;
 		}

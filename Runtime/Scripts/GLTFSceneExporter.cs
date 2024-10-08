@@ -12,6 +12,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using GLTF.Schema;
 using Unity.Profiling;
 using UnityEngine;
@@ -106,7 +107,7 @@ namespace UnityGLTF
 		public ExportOptions(GLTFSettings settings): base(settings) { }
 	}
 
-	public partial class GLTFSceneExporter
+	public partial class GLTFSceneExporter : IAsyncDisposable
 	{
 		// Available export callbacks.
 		// Callbacks can be either set statically (for exporters that register themselves)
@@ -1427,5 +1428,9 @@ namespace UnityGLTF
 		public Texture GetTexture(int id) => _textures[id].Texture;
 
 		#endregion
+		
+		public async ValueTask DisposeAsync() {
+			if (_bufferWriter != null) await _bufferWriter.DisposeAsync();
+		}
 	}
 }
