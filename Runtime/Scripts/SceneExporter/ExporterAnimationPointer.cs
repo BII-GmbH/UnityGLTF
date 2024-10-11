@@ -44,7 +44,7 @@ namespace UnityGLTF
 		///		_exporter.GetRoot().Animations.Add(_animationA);
 		///	};
 		/// </code></example>
-		public void AddAnimationData(Object animatedObject, string propertyName, GLTFAnimation animation, double[] times, object[] values)
+		public void AddAnimationData(Object animatedObject, string propertyName, GLTFAnimation animation, InterpolationType interpolationType, double[] times, object[] values)
 		{
 			if (!animatedObject) return;
 			
@@ -259,10 +259,12 @@ namespace UnityGLTF
 			AnimationChannel Tchannel = new AnimationChannel();
 			AnimationChannelTarget TchannelTarget = new AnimationChannelTarget() { Path = propertyName, Node = Node };
 			Tchannel.Target = TchannelTarget;
+			
 
 			AnimationSampler Tsampler = new AnimationSampler();
 			Tsampler.Input = timeAccessor;
-
+			Tsampler.Interpolation = interpolationType;
+			
 			// for cases where one property needs to be split up into multiple tracks
 			// example: emissiveFactor * emissiveStrength
 			// TODO not needed when secondPropertyName==null

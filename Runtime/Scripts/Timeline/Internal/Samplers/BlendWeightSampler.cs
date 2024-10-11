@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using GLTF.Schema;
 using UnityEngine;
 
 namespace UnityGLTF.Timeline.Samplers
@@ -6,9 +7,12 @@ namespace UnityGLTF.Timeline.Samplers
     internal sealed class BlendWeightSampler : AnimationSampler<SkinnedMeshRenderer, float[]>
     {
         public override string PropertyName => "weights";
+
+        public override InterpolationType InterpolationType => InterpolationType.LINEAR;
+
         public override IEqualityComparer<float[]> DataComparer => EqualityComparer<float[]>.Default;
         
-        protected override SkinnedMeshRenderer getTarget(Transform transform) => transform.TryGetComponent<SkinnedMeshRenderer>(out var smr) ? smr : null;
+        internal override SkinnedMeshRenderer getTarget(Transform transform) => transform.TryGetComponent<SkinnedMeshRenderer>(out var smr) ? smr : null;
 
         public override float[] GetValue(Transform transform, SkinnedMeshRenderer target, AnimationData data) {
             if (target.sharedMesh) {

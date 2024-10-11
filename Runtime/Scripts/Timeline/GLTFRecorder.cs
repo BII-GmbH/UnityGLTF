@@ -152,12 +152,12 @@ namespace UnityGLTF.Timeline
 			}
 		}
 		
-		public void StartRecording(double time)
+		public void StartRecording(double time, bool includeInactiveTransforms = true)
 		{
 			startTime = time;
 			lastRecordedTime = 0;
 			
-			root.GetComponentsInChildren<Transform>(true, transformCache);
+			root.GetComponentsInChildren<Transform>(includeInactiveTransforms, transformCache);
 			recordingAnimatedTransforms.Clear();
 
 			foreach (var tr in transformCache)
@@ -229,7 +229,8 @@ namespace UnityGLTF.Timeline
 				if (!recordingAnimatedTransforms.ContainsKey(tr))
 				{
 					Profiler.BeginSample("Update Recording - Add New Transform");
-					// insert "empty" frame with scale=0,0,0 because this object might have just appeared in this frame
+					// because lastRecordedTime > 0, this will insert an "empty" frame with scale=0,0,0 at time = 0
+					// because this object just appeared in this frame
 					var emptyData = new AnimationData(animationSamplers, tr, lastRecordedTime);
 					recordingAnimatedTransforms.Add(tr, emptyData);
 					Profiler.EndSample();
@@ -255,7 +256,7 @@ namespace UnityGLTF.Timeline
 			#if UNITY_EDITOR
 			Debug.Log("Gltf Recording saved. "
 				+ "Tracks: " + recordingAnimatedTransforms.Count + ", "
-				+ "Total Keyframes: " + recordingAnimatedTransforms.Sum(x => x.Value.tracks.Sum(y => y.Values.Count())));
+				+ "Total Keyframes: " + recordingAnimatedTransforms.Sum(x => x.Value.tracks.Sum(y => y.ValuesUntyped.Count())));
 			#endif
 
 			// release any excess memory of the cache as fast as we can
@@ -351,73 +352,120 @@ namespace UnityGLTF.Timeline
 			foreach (var kvp in recordingAnimatedTransforms)
 			{
 				processAnimationMarker.Begin();
-				foreach (var track in kvp.Value.tracks)
-				{
-					if (track.Times.Length == 0) continue;
-
-					var animatedObject = track.AnimatedObject;
-					var trackName = track.PropertyName;
-					var trackTimes = track.Times;
-					var trackValues = track.Values;
-					
-					// AnimationData always has a visibility track, and if there is also a scale track, merge them
-					if (track.PropertyName == "scale" && track is AnimationTrack<Transform, Vector3> scaleTrack) {
-						// GLTF does not internally support a visibility state (animation).
-						// So to simulate support for that, merge the visibility track with the scale track
-						// forcing the scale to (0,0,0) whenever the model is invisible
-						var (mergedTimes, mergedScales) = mergeVisibilityAndScaleTracks(kvp.Value.visibilityTrack, scaleTrack);
-						if (mergedTimes == null || mergedScales == null)
-							continue;
-						trackTimes = mergedTimes;
-						trackValues = mergedScales.Cast<object>().ToArray();
-					}
-
-					if (OnBeforeAddAnimationData != null) {
-						OnBeforeAddAnimationData.Invoke(
-							new PostAnimationData(animatedObject, trackName, trackTimes, trackValues)
-						);
-					}
-
-					if (calculateTranslationBounds && track.PropertyName == "translation") {
-						
-						foreach (var t in trackValues) {
-							var vec = (Vector3) t;
-							if (!gotFirstValue)
-							{
-								translationBounds = new Bounds(vec, Vector3.zero);
-								gotFirstValue = true;
-							}
-							else
-							{
-								translationBounds.Encapsulate(vec);
-							}
-						}
-					}
-
-					GLTFSceneExporter.RemoveUnneededKeyframes(ref trackTimes, ref trackValues);
-					gltfSceneExporter.AddAnimationData(track.AnimatedObject, track.PropertyName, anim, trackTimes, trackValues);
+				
+				var weHadAScaleTrack = false;
+				
+				var visibilityTrack = kvp.Value.visibilityTrack;
+				
+				foreach (var track in kvp.Value.tracks) {
+					handleSingleTrack(
+						gltfSceneExporter,
+						anim,
+						track,
+						visibilityTrack,
+						calculateTranslationBounds,
+						ref gotFirstValue,
+						ref translationBounds,
+						ref weHadAScaleTrack
+					);
 				}
+
+				if (visibilityTrack != null && !weHadAScaleTrack) {
+					var (interpolation, times, scales) = visibilityTrackToScaleTrack(visibilityTrack);
+					gltfSceneExporter.AddAnimationData(kvp.Key, "scale", anim, interpolation, times, scales.Cast<object>().ToArray());
+				}
+				
 				processAnimationMarker.End();
 			}
 		}
 
-		private static (double[]? times, Vector3[]? mergedScales) mergeVisibilityAndScaleTracks(
+		private void handleSingleTrack(
+			GLTFSceneExporter gltfSceneExporter,
+			GLTFAnimation animation,
+			AnimationTrack track,
 			VisibilityTrack? visibilityTrack,
-			BaseAnimationTrack<Transform, Vector3>? scaleTrack
+			bool calculateTranslationBounds,
+			ref bool foundFirstTranslationTrack,
+			ref Bounds translationBounds,
+			ref bool foundScaleTrack
 		) {
-			if (visibilityTrack == null && scaleTrack == null) return (null, null);
-			if (visibilityTrack == null) return (scaleTrack?.Times, scaleTrack?.values);
-			var visTimes = visibilityTrack.Times;
-			var visValues = visibilityTrack.values;
-			
-			if (scaleTrack == null) {
-				var visScaleValues = visValues.Select(vis => vis ? Vector3.one : Vector3.zero).ToArray();
-				return (visTimes, visScaleValues);
+			if (track.Times.Length == 0) return;
+
+			// TODO: Tracks with one or two samples are
+			// likely useless, we should filter them
+					
+			var animatedObject = track.AnimatedObjectUntyped;
+			if(animatedObject == null) return;
+
+			var trackName = track.PropertyName;
+			var trackTimes = track.Times;
+			var trackValues = track.ValuesUntyped;
+					
+			// AnimationData always has a visibility track, and if there is also a scale track, merge them
+			if (track.PropertyName == "scale" && track is AnimationTrack<Transform, Vector3> scaleTrack) {
+				// GLTF does not internally support a visibility state (animation).
+				// So to simulate support for that, merge the visibility track with the scale track
+				// forcing the scale to (0,0,0) whenever the model is invisible
+				foundScaleTrack = true;
+				var result = mergeVisibilityAndScaleTracks(visibilityTrack, scaleTrack);
+				if (result == null) return;
+				trackTimes = result!.Value.times;
+				trackValues = result!.Value.mergedScales.Cast<object>().ToArray();
 			}
+
+			OnBeforeAddAnimationData?.Invoke(
+				new PostAnimationData(animatedObject, trackName, trackTimes, trackValues)
+			);
+
+			if (calculateTranslationBounds && track.PropertyName == "translation") {
+						
+				foreach (var t in trackValues) {
+					var vec = (Vector3) t;
+					if (!foundFirstTranslationTrack)
+					{
+						translationBounds = new Bounds(vec, Vector3.zero);
+						foundFirstTranslationTrack = true;
+					}
+					else
+					{
+						translationBounds.Encapsulate(vec);
+					}
+				}
+			}
+			
+			// TODO FIlter tracks that only have one or two samples that dont change the default value
+			//GLTFSceneExporter.RemoveUnneededKeyframes(ref trackTimes, ref trackValues);
+			gltfSceneExporter.AddAnimationData(track.AnimatedObjectUntyped, track.PropertyName, animation, track.InterpolationType, trackTimes, trackValues);
+		}
+
+		/// use this only if you only have a visibility track, no scale, otherwise use <see cref="mergeVisibilityAndScaleTracks"/> instead to merge the two 
+		internal static (InterpolationType interpolation, double[] times, Vector3[] mergedScales)
+			visibilityTrackToScaleTrack(AnimationTrack<GameObject, bool> visibilityTrack) {
+			var visTimes = visibilityTrack.Times;
+			var visValues = visibilityTrack.Values;
+			var visScaleValues = visValues.Select(vis => vis ? Vector3.one : Vector3.zero).ToArray();
+			return (InterpolationType.STEP, visTimes, visScaleValues);
+		}
+		
+		
+		internal static (InterpolationType interpolation, double[] times, Vector3[] mergedScales)? mergeVisibilityAndScaleTracks(
+			AnimationTrack<GameObject, bool>? visibilityTrack,
+			AnimationTrack<Transform, Vector3>? scaleTrack
+		) {
+			if (visibilityTrack == null && scaleTrack == null) 
+				return null;
+			if (visibilityTrack == null) 
+				return (scaleTrack!.InterpolationType, scaleTrack.Times, scaleTrack.Values);
+			
+			var visTimes = visibilityTrack.Times;
+			var visValues = visibilityTrack.Values;
+			
+			if (scaleTrack == null)
+				return visibilityTrackToScaleTrack(visibilityTrack);
 			// both tracks are present, need to merge, but visibility always takes precedence
 			
 			var scaleTimes = scaleTrack.Times;
-			var scaleValues = scaleTrack.values;
+			var scaleValues = scaleTrack.Values;
 
 			var mergedTimes = new List<double>(visTimes.Length + scaleTimes.Length);
 			var mergedScales = new List<Vector3>(visValues.Length + scaleValues.Length);
@@ -425,8 +473,9 @@ namespace UnityGLTF.Timeline
 			var visIndex = 0;
 			var scaleIndex = 0;
             
-			var lastVisible = false;
-			var lastScale = Vector3.zero;
+			bool? lastVisible = null;
+			double? lastScaleTime = null;
+			Vector3? lastScale = null;
 			
 			// process both
 			while (visIndex < visTimes.Length && scaleIndex < scaleTimes.Length) {
@@ -438,26 +487,105 @@ namespace UnityGLTF.Timeline
 				if (visTime.nearlyEqual(scaleTime)) {
 					// both samples have the same timestamp
 					// choose output value depending on visibility, but use scale value if visible
-					record(visTime, visible ? scale : Vector3.zero);
+					switch (lastVisible, visible) {
+						case (true, false):
+							// visibility changed from visible to invisible
+							// use last scale value
+							if(visTime > 0)
+								record(visTime.nextSmaller(), scale);
+							record(visTime, Vector3.zero);
+							break;
+						case (true, true):
+							// both are visible, use scale value
+							record(visTime, scale);
+							break;
+						// _ to catch null and false as values
+						case (_, false):
+							// both are invisible, use scale value
+							record(visTime, Vector3.zero);
+							break;
+						case (_, true):
+							// visibility changed from invisible to visible
+							// use scale value
+							if(visTime > 0)
+								record(visTime.nextSmaller(), Vector3.zero);
+							record(visTime, scale);
+							break;
+					}
 					visIndex++;
 					scaleIndex++;
 					
+					lastScaleTime = visTime;
+					lastScale = scale;
+					lastVisible = visible;
 				} else if (visTime < scaleTime) {
 					// the next visibility change occurs sooner than the next scale change
-					// record a change using visibility state and (if visible) previous scale value
-					record(visTime, visible ? lastScale : Vector3.zero);
+					// record two samples:
+					// 1) sample of the last visibility state _right_ before the change occurs to prevent linear interpolation from breaking the animation
+					// 2) Sample of the scale using visibility state and (if visible) the scale
+					// value interpolated between the last and next sample
+					
+					// both samples have the same timestamp
+					// choose output value depending on visibility, but use scale value if visible
+					switch (lastVisible, visible) {
+						case (true, false):
+							// visibility changed from visible to invisible
+							// use last scale value
+							if (visTime <= 0) {
+								// this should not be able to happen, but just in case
+								record(visTime, Vector3.zero);
+							} else {
+								var lastTime = lastScaleTime ?? visTime;
+								record(
+									visTime.nextSmaller(),
+									Vector3.LerpUnclamped(
+										lastScale ?? Vector3.one,
+										scale,
+										(float)((visTime - lastTime) / (scaleTime - lastTime))
+									)
+								);
+								record(visTime, Vector3.zero);
+							}
+							break;
+						case (true, true):
+							// both are visible, use scale value
+							break;
+						case (_, false):
+							// both are invisible, use scale value
+							break;
+						case (_, true):
+							// visibility changed from invisible to visible
+							// use scale value
+							if (visTime <= 0) {
+								record(visTime, Vector3.one);
+							} else {
+								record(visTime.nextSmaller(), Vector3.zero);
+								var last = lastScaleTime ?? visTime;
+								
+								record(
+									visTime,
+									Vector3.LerpUnclamped(
+										lastScale ?? Vector3.zero,
+										scale,
+										(float)((visTime - last) / (scaleTime - last))
+									)
+								);
+							}
+							break;
+					}
 					visIndex++;
+					
+					lastVisible = visible;
 				}
 				else if (scaleTime < visTime) {
 					// the next scale change occurs sooner than the next visibility change
 					// However, if the model is currently invisible, we simply dont care
-                    if (lastVisible) 
+                    if (lastVisible ?? true) 
 	                    record(scaleTime, scale);
                     scaleIndex++;
+                    lastScaleTime = scaleTime;
+                    lastScale = scale;
 				}
-
-				lastScale = scale;
-				lastVisible = visible;
 			}
 			
 			// process remaining visibility changes - this will only enter if scale end was reached first
@@ -468,7 +596,7 @@ namespace UnityGLTF.Timeline
 				// next vis change is sooner than next scale change
 				// time: -> visTime
 				// res: visible -> lastScale : 0
-				record(visTime, visible ? lastScale : Vector3.zero);
+				record(visTime, visible ? (lastScale ?? Vector3.one) : Vector3.zero);
 				visIndex++;
 				
 				lastVisible = visible;
@@ -476,13 +604,13 @@ namespace UnityGLTF.Timeline
 			
 			// process remaining scale changes - this will only enter if vis end was reached first -
 			// if last visibility was invisible then there is no point in adding these
-			while (lastVisible && scaleIndex < scaleTimes.Length) {
+			while ( (lastVisible ?? true) && scaleIndex < scaleTimes.Length) {
 				var scaleTime = scaleTimes[scaleIndex];
 				var scale = scaleValues[scaleIndex];
 				record(scaleTime, scale);
 			}
 			
-			return (mergedTimes.ToArray(), mergedScales.ToArray());
+			return (scaleTrack.InterpolationType, mergedTimes.ToArray(), mergedScales.ToArray());
 
 			void record(double time, Vector3 scale) {
 				mergedTimes.Add(time);
@@ -548,5 +676,26 @@ namespace UnityGLTF.Timeline
 	
 	internal static class DoubleExtensions {
 		internal static bool nearlyEqual(this double a, double b, double epsilon = double.Epsilon) => Math.Abs(a - b) < epsilon;
+		
+		internal static double nextSmaller(this double d) {
+			if (!double.IsFinite(d))
+				return -double.Epsilon;
+			var bits = BitConverter.DoubleToInt64Bits(d);
+			return d switch {
+				> 0 => BitConverter.Int64BitsToDouble(bits - 1),
+				< 0 => BitConverter.Int64BitsToDouble(bits + 1),
+				_ => -double.Epsilon
+			};
+		}
+		internal static double nextLarger(this double d) {
+			if (!double.IsFinite(d))
+				return double.Epsilon;
+			var bits = BitConverter.DoubleToInt64Bits(d);
+			return d switch {
+				> 0 => BitConverter.Int64BitsToDouble(bits + 1),
+				< 0 => BitConverter.Int64BitsToDouble(bits - 1),
+				_ => double.Epsilon
+			};
+		}
 	}
 }

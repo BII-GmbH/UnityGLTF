@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using GLTF.Schema;
 using Unity.Profiling;
 using Object = UnityEngine.Object;
 
@@ -13,31 +14,33 @@ namespace UnityGLTF.Timeline
     
     public interface AnimationTrack
     {
-        Object? AnimatedObject { get; }
+        Object? AnimatedObjectUntyped { get; }
         string PropertyName { get; }
+     
+        InterpolationType InterpolationType { get; }
+        
         double[] Times { get; }
-        object[] Values { get; }
+        object[] ValuesUntyped { get; }
         
         double? LastTime { get; }
-        object? LastValue { get; }
+        object? LastValueUntyped { get; }
         
         void SampleIfChanged(double time);
     }
 
-    internal abstract class BaseAnimationTrack<TObject, TData> : AnimationTrack where TObject : Object
+    public interface AnimationTrack<out TObject, out TData> : AnimationTrack where TObject : Object
     {
-        private readonly struct LastSampleData
-        {
-            public readonly double Time;
-            [System.Diagnostics.CodeAnalysis.NotNull] [DisallowNull]
-            public readonly TData Sample;
+        Object? AnimationTrack.AnimatedObjectUntyped => AnimatedObject;
+        object[] AnimationTrack.ValuesUntyped => Values.Cast<object>().ToArray();
+        object? AnimationTrack.LastValueUntyped => LastValue;
 
-            public LastSampleData(double time, TData sample) {
-                Time = time;
-                Sample = sample;
-            }
-        }
-        
+        TObject? AnimatedObject { get; }
+        TData[] Values { get; }
+        TData? LastValue { get; }
+    }
+    
+    internal abstract class BaseAnimationTrack<TObject, TData> : AnimationTrack<TObject, TData> where TObject : Object
+    {
         private readonly Dictionary<double, TData> samples;
         
         private readonly AnimationData animationData;
@@ -48,16 +51,18 @@ namespace UnityGLTF.Timeline
         private double lastSampleTime = Double.NegativeInfinity, secondToLastSampleTime = Double.NegativeInfinity;
         private TData? lastSampleValue, secondToLastSampleValue;
         
-        public Object? AnimatedObject => sampler.GetTarget(animationData.transform);
-        public string PropertyName => sampler.PropertyName;
-        public double[] Times => samples.Keys.ToArray();
+        public TObject? AnimatedObject => sampler.getTarget(animationData.transform);
         
-        public object[] Values => samples.Values.Cast<object>().ToArray();
-        internal TData[] values => samples.Values.ToArray();
+        public string PropertyName => sampler.PropertyName;
 
-        public double? LastTime => lastSampleTime;
-        public object? LastValue => lastValue;
-        internal TData? lastValue => lastSampleValue;
+        public InterpolationType InterpolationType => sampler.InterpolationType;
+
+        public double[] Times => samples.Keys.ToArray();
+
+        public double? LastTime => lastSampleTime;        
+        
+        public TData[] Values => samples.Values.ToArray();
+        public TData? LastValue => lastSampleValue;
         
         protected BaseAnimationTrack(AnimationData tr, AnimationSampler<TObject, TData> plan, double time, IEqualityComparer<TData> equalityComparer, Func<TData?, TData?>? overrideInitialValueFunc = null) {
             this.animationData = tr;
@@ -134,8 +139,8 @@ namespace UnityGLTF.Timeline
         }
     }
 
-    internal sealed class AnimationTrack<TObject, TData> : BaseAnimationTrack<TObject, TData> where TObject : Object
+    internal sealed class AnimationTrackImpl<TObject, TData> : BaseAnimationTrack<TObject, TData> where TObject : Object
     {
-        public AnimationTrack(AnimationData tr, AnimationSampler<TObject, TData> plan, double time, IEqualityComparer<TData> equalityComparer) : base(tr, plan, time, equalityComparer) { }
+        public AnimationTrackImpl(AnimationData tr, AnimationSampler<TObject, TData> plan, double time, IEqualityComparer<TData> equalityComparer) : base(tr, plan, time, equalityComparer) { }
     }
 }

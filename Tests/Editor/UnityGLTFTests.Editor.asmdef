@@ -17,6 +17,7 @@
     "precompiledReferences": [
         "GLTFSerialization.dll",
         "Newtonsoft.Json.dll",
+        "NSubstitute.dll",
         "nunit.framework.dll"
     ],
     "autoReferenced": false,
@@ -29,6 +30,11 @@
             "name": "Select...",
             "expression": "0.0.0",
             "define": "HAVE_ASSET_GENERATOR"
+        },
+        {
+            "name": "org.khronos.unitygltf",
+            "expression": "0.0.0",
+            "define": "USE_ANIMATION_POINTER"
         }
     ],
     "noEngineReferences": false

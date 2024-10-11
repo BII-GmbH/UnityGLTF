@@ -166,7 +166,7 @@ namespace UnityGLTF
 				if (positionTrack != null)
 				{
 					var t0 = positionTrack.Times;
-					var frameData = positionTrack.Values;
+					var frameData = positionTrack.ValuesUntyped;
 					var posX = new AnimationCurve(t0.Select((value, index) => new Keyframe((float)value, ((Vector3)frameData[index]).x)).ToArray());
 					var posY = new AnimationCurve(t0.Select((value, index) => new Keyframe((float)value, ((Vector3)frameData[index]).y)).ToArray());
 					var posZ = new AnimationCurve(t0.Select((value, index) => new Keyframe((float)value, ((Vector3)frameData[index]).z)).ToArray());
@@ -177,7 +177,7 @@ namespace UnityGLTF
 				if (rotationTrack != null)
 				{
 					var t1 = rotationTrack.Times;
-					var frameData = rotationTrack.Values;
+					var frameData = rotationTrack.ValuesUntyped;
 					var rotX = new AnimationCurve(t1.Select((value, index) => new Keyframe((float)value, ((Quaternion)frameData[index]).x)).ToArray());
 					var rotY = new AnimationCurve(t1.Select((value, index) => new Keyframe((float)value, ((Quaternion)frameData[index]).y)).ToArray());
 					var rotZ = new AnimationCurve(t1.Select((value, index) => new Keyframe((float)value, ((Quaternion)frameData[index]).z)).ToArray());
@@ -189,7 +189,7 @@ namespace UnityGLTF
 				if (scaleTrack != null)
 				{
 					var t2 = scaleTrack.Times;
-					var frameData = scaleTrack.Values;
+					var frameData = scaleTrack.ValuesUntyped;
 					var sclX = new AnimationCurve(t2.Select((value, index) => new Keyframe((float)value, ((Vector3)frameData[index]).x)).ToArray());
 					var sclY = new AnimationCurve(t2.Select((value, index) => new Keyframe((float)value, ((Vector3)frameData[index]).y)).ToArray());
 					var sclZ = new AnimationCurve(t2.Select((value, index) => new Keyframe((float)value, ((Vector3)frameData[index]).z)).ToArray());

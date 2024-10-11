@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using GLTF.Schema;
 using UnityEngine;
 
 namespace UnityGLTF.Timeline.Samplers
@@ -10,8 +11,11 @@ namespace UnityGLTF.Timeline.Samplers
         public TranslationSampler(Func<Transform, bool> sampleInWorldSpace) => this.sampleInWorldSpace = sampleInWorldSpace;
 
         public override string PropertyName => "translation";
+
+        public override InterpolationType InterpolationType => InterpolationType.LINEAR;
+
         public override IEqualityComparer<Vector3> DataComparer => EqualityComparer<Vector3>.Default;
-        protected override Transform getTarget(Transform transform) => transform;
+        internal override Transform getTarget(Transform transform) => transform;
 
         public override Vector3 GetValue(Transform transform, Transform target, AnimationData data) =>
             sampleInWorldSpace(transform) ? transform.position : transform.localPosition;
@@ -22,8 +26,11 @@ namespace UnityGLTF.Timeline.Samplers
         private readonly Func<Transform, bool> sampleInWorldSpace;
         public RotationSampler(Func<Transform, bool> sampleInWorldSpace) => this.sampleInWorldSpace = sampleInWorldSpace;
         public override string PropertyName => "rotation";
+
+        public override InterpolationType InterpolationType => InterpolationType.LINEAR;
+
         public override IEqualityComparer<Quaternion> DataComparer => EqualityComparer<Quaternion>.Default;
-        protected override Transform getTarget(Transform transform) => transform;
+        internal override Transform getTarget(Transform transform) => transform;
         public override Quaternion GetValue(Transform transform, Transform target, AnimationData data) =>
             sampleInWorldSpace(transform) ? transform.rotation : transform.localRotation;
     }
@@ -34,8 +41,11 @@ namespace UnityGLTF.Timeline.Samplers
         public ScaleSampler(Func<Transform, bool> sampleInWorldSpace) => this.sampleInWorldSpace = sampleInWorldSpace;
         
         public override string PropertyName => "scale";
+
+        public override InterpolationType InterpolationType => InterpolationType.LINEAR;
+
         public override IEqualityComparer<Vector3> DataComparer => EqualityComparer<Vector3>.Default;
-        protected override Transform getTarget(Transform transform) => transform;
+        internal override Transform getTarget(Transform transform) => transform;
         public override Vector3 GetValue(Transform transform, Transform target, AnimationData data) =>
             sampleInWorldSpace(transform) ? transform.lossyScale : transform.localScale;
     }

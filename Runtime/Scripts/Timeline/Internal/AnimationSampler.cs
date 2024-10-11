@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
+using GLTF.Schema;
 using JetBrains.Annotations;
 using UnityEngine;
 using UnityGLTF.Timeline.Samplers;
@@ -30,7 +31,7 @@ namespace UnityGLTF.Timeline
             var otherSamplers = new List<AnimationSampler>{
                 new TranslationSampler(useWorldSpaceForTransform),
                 new RotationSampler(useWorldSpaceForTransform),
-                new ScaleSampler(useWorldSpaceForTransform)
+                //new ScaleSampler(useWorldSpaceForTransform)
             };
             if (recordBlendShapes) {
                 otherSamplers.Add(new BlendWeightSampler());
@@ -60,6 +61,8 @@ namespace UnityGLTF.Timeline
     {
         public string PropertyName { get; }
         
+        public InterpolationType InterpolationType { get; }
+        
         object? Sample(AnimationData data);
 
         public Object? GetTarget(Transform transform);
@@ -71,6 +74,7 @@ namespace UnityGLTF.Timeline
         where TObject : UnityEngine.Object
     {
         public abstract string PropertyName { get; }
+        public abstract InterpolationType InterpolationType { get; }
         public Type dataType => typeof(TData);
 
         public abstract IEqualityComparer<TData> DataComparer { get; }
@@ -78,7 +82,7 @@ namespace UnityGLTF.Timeline
         public object? Sample(AnimationData data) => sample(data);
 
         public Object? GetTarget(Transform transform) => getTarget(transform);
-        protected abstract TObject? getTarget(Transform transform);
+        internal abstract TObject? getTarget(Transform transform);
         public abstract TData? GetValue(Transform transform, TObject target, AnimationData data);
 
         internal TData? sample(AnimationData data) {
@@ -87,16 +91,19 @@ namespace UnityGLTF.Timeline
         }
         
         public AnimationTrack StartNewAnimationTrackAt(AnimationData data, double time) =>
-            new AnimationTrack<TObject, TData>(data, this, time, DataComparer);
+            new AnimationTrackImpl<TObject, TData>(data, this, time, DataComparer);
     }
 
     internal sealed class CustomAnimationSamplerWrapper<TComponent, TData> : AnimationSampler<TComponent, TData> where TComponent : Component
     {
 
         public override string PropertyName => customSampler.PropertyName;
+
+        public override InterpolationType InterpolationType => customSampler.InterpolationType;
+
         public override IEqualityComparer<TData> DataComparer => customSampler.EqualityComparer;
 
-        protected override TComponent? getTarget(Transform transform) => customSampler.getTarget(transform);
+        internal override TComponent? getTarget(Transform transform) => customSampler.getTarget(transform);
 
         public override TData? GetValue(Transform transform, TComponent target, AnimationData data) =>
             customSampler.GetValue(transform, target);

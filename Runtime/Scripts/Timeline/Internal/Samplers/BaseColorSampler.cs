@@ -1,16 +1,18 @@
 using System.Collections.Generic;
+using GLTF.Schema;
 using UnityEngine;
 
 namespace UnityGLTF.Timeline.Samplers
 {
     internal sealed class BaseColorSampler : AnimationSampler<Material, Color?>
     {
-        private static readonly MaterialPropertyBlock materialPropertyBlock = new MaterialPropertyBlock();
-        
         public override string PropertyName => "baseColorFactor";
+
+        public override InterpolationType InterpolationType => InterpolationType.LINEAR;
+
         public override IEqualityComparer<Color?> DataComparer => EqualityComparer<Color?>.Default;
 
-        protected override Material getTarget(Transform transform) =>
+        internal override Material getTarget(Transform transform) =>
             transform.TryGetComponent<MeshRenderer>(out var mr)
                 ? mr.sharedMaterial
                 : transform.TryGetComponent<SkinnedMeshRenderer>(out var smr)

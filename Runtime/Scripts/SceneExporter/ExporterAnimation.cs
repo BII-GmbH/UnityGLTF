@@ -917,7 +917,7 @@ namespace UnityGLTF
 							var prop = c.Value;
 							if (BakePropertyAnimation(prop, clip.length, AnimationBakingFramerate, speedMultiplier, out times, out var values))
 							{
-								AddAnimationData(prop.target, prop.propertyName, animation, times, values);
+								AddAnimationData(prop.target, prop.propertyName, animation, InterpolationType.LINEAR, times, values);
 								sampledAnimationData = true;
 							}
 						}
@@ -934,7 +934,7 @@ namespace UnityGLTF
 							trp2.curve.AddRange(curve.translationCurves);
 							if (BakePropertyAnimation(trp2, clip.length, AnimationBakingFramerate, speedMultiplier, out times, out var values2))
 							{
-								AddAnimationData(targetTr, trp2.propertyName, animation, times, values2);
+								AddAnimationData(targetTr, trp2.propertyName, animation, InterpolationType.LINEAR,times, values2);
 								sampledAnimationData = true;
 							}
 						}
@@ -945,7 +945,7 @@ namespace UnityGLTF
 							trp3.curve.AddRange(curve.rotationCurves.Where(x => x != null));
 							if (BakePropertyAnimation(trp3, clip.length, AnimationBakingFramerate, speedMultiplier, out times, out var values3))
 							{
-								AddAnimationData(targetTr, trp3.propertyName, animation, times, values3);
+								AddAnimationData(targetTr, trp3.propertyName, animation, InterpolationType.LINEAR,times, values3);
 								sampledAnimationData = true;
 							}
 
@@ -957,7 +957,7 @@ namespace UnityGLTF
 							trp4.curve.AddRange(curve.scaleCurves);
 							if (BakePropertyAnimation(trp4, clip.length, AnimationBakingFramerate, speedMultiplier, out times, out var values4))
 							{
-								AddAnimationData(targetTr, trp4.propertyName, animation, times, values4);
+								AddAnimationData(targetTr, trp4.propertyName, animation, InterpolationType.LINEAR,times, values4);
 								sampledAnimationData = true;
 							}
 						}
@@ -969,7 +969,7 @@ namespace UnityGLTF
 							if (BakePropertyAnimation(trp5, clip.length, AnimationBakingFramerate, speedMultiplier, out times, out var values5))
 							{
 								var targetComponent = targetTr.GetComponent<SkinnedMeshRenderer>();
-								AddAnimationData(targetComponent, trp5.propertyName, animation, times, values5);
+								AddAnimationData(targetComponent, trp5.propertyName, animation, InterpolationType.LINEAR,times, values5);
 								sampledAnimationData = true;
 							}
 						}
@@ -1445,7 +1445,7 @@ namespace UnityGLTF
 			times = _times.ToArray();
 			values = _values.ToArray();
 
-			RemoveUnneededKeyframes(ref times, ref values);
+			//RemoveUnneededKeyframes(ref times, ref values);
 
 			return true;
 		}

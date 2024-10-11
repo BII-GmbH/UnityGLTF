@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using GLTF.Schema;
 using UnityEngine;
 
 namespace UnityGLTF.Timeline.Samplers
@@ -19,12 +20,15 @@ namespace UnityGLTF.Timeline.Samplers
     internal sealed class VisibilitySampler : AnimationSampler<GameObject, bool>
     {
         public override string PropertyName => "visibility";
+
+        public override InterpolationType InterpolationType => InterpolationType.STEP;
+
         public override IEqualityComparer<bool> DataComparer => EqualityComparer<bool>.Default;
 
         internal VisibilityTrack startNewAnimationTrackAtStartOfTime(AnimationData data, double time) =>
             new VisibilityTrack(data, this, time);
 
-        protected override GameObject getTarget(Transform transform) => transform.gameObject;
+        internal override GameObject getTarget(Transform transform) => transform.gameObject;
 
         public override bool GetValue(Transform transform, GameObject target, AnimationData data) =>
             target.activeSelf;
