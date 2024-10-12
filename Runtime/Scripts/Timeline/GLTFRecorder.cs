@@ -217,7 +217,7 @@ namespace UnityGLTF.Timeline
 
 			if (time <= lastRecordedTime)
 			{
-				Debug.LogWarning("Can't record backwards in time, please avoid this.");
+				Debug.LogWarning($"Can't record backwards in time, please avoid this (Tried to record at {time}, but it is already {lastRecordedTime}).");
 				return;
 			}
 
@@ -344,7 +344,7 @@ namespace UnityGLTF.Timeline
 		private static ProfilerMarker simplifyKeyframesMarker = new ProfilerMarker("Simplify Keyframes");
 		private static ProfilerMarker convertValuesMarker = new ProfilerMarker("Convert Values to Arrays");
 
-		private void CollectAndProcessAnimation(GLTFSceneExporter gltfSceneExporter, GLTFAnimation anim, bool calculateTranslationBounds, out Bounds translationBounds)
+		public void CollectAndProcessAnimation(AnimationDataCollector gltfSceneExporter, GLTFAnimation anim, bool calculateTranslationBounds, out Bounds translationBounds)
 		{
 			var gotFirstValue = false;
 			translationBounds = new Bounds();
@@ -358,7 +358,7 @@ namespace UnityGLTF.Timeline
 				var visibilityTrack = kvp.Value.visibilityTrack;
 				
 				foreach (var track in kvp.Value.tracks) {
-					handleSingleTrack(
+					collectAndProcessSingleTrack(
 						gltfSceneExporter,
 						anim,
 						track,
@@ -371,6 +371,12 @@ namespace UnityGLTF.Timeline
 				}
 
 				if (visibilityTrack != null && !weHadAScaleTrack) {
+					if (visibilityTrack.Values.Length <= 2) {
+						var first = visibilityTrack.Values.First();
+						if (visibilityTrack.Values.All(v => first == v)) 
+							continue;
+					}
+					
 					var (interpolation, times, scales) = visibilityTrackToScaleTrack(visibilityTrack);
 					gltfSceneExporter.AddAnimationData(kvp.Key, "scale", anim, interpolation, times, scales.Cast<object>().ToArray());
 				}
@@ -379,8 +385,8 @@ namespace UnityGLTF.Timeline
 			}
 		}
 
-		private void handleSingleTrack(
-			GLTFSceneExporter gltfSceneExporter,
+		private void collectAndProcessSingleTrack(
+			AnimationDataCollector gltfSceneExporter,
 			GLTFAnimation animation,
 			AnimationTrack track,
 			VisibilityTrack? visibilityTrack,
@@ -390,10 +396,7 @@ namespace UnityGLTF.Timeline
 			ref bool foundScaleTrack
 		) {
 			if (track.Times.Length == 0) return;
-
-			// TODO: Tracks with one or two samples are
-			// likely useless, we should filter them
-					
+			
 			var animatedObject = track.AnimatedObjectUntyped;
 			if(animatedObject == null) return;
 
@@ -409,10 +412,17 @@ namespace UnityGLTF.Timeline
 				foundScaleTrack = true;
 				var result = mergeVisibilityAndScaleTracks(visibilityTrack, scaleTrack);
 				if (result == null) return;
+				
 				trackTimes = result!.Value.times;
 				trackValues = result!.Value.mergedScales.Cast<object>().ToArray();
 			}
 
+			// tracks that contain only an initial entry or two entries that
+			// are identical do not bring any benefit - they only bloat the file
+			if (trackValues.Length <= 2 && 
+				trackValues.All(v => track.InitialValueUntyped?.Equals(v) ?? false))
+				return;
+			
 			OnBeforeAddAnimationData?.Invoke(
 				new PostAnimationData(animatedObject, trackName, trackTimes, trackValues)
 			);

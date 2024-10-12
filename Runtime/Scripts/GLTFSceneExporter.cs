@@ -19,6 +19,7 @@ using UnityEngine;
 using UnityEngine.Profiling;
 using UnityGLTF.Extensions;
 using UnityGLTF.Plugins;
+using Object = UnityEngine.Object;
 using Sampler = GLTF.Schema.Sampler;
 
 namespace UnityGLTF
@@ -107,7 +108,19 @@ namespace UnityGLTF
 		public ExportOptions(GLTFSettings settings): base(settings) { }
 	}
 
-	public partial class GLTFSceneExporter : IAsyncDisposable
+	public interface AnimationDataCollector
+	{
+		void AddAnimationData(
+			Object animatedObject,
+			string propertyName,
+			GLTFAnimation animation,
+			InterpolationType interpolationType,
+			double[] times,
+			object[] values
+		);
+	}
+	
+	public partial class GLTFSceneExporter : AnimationDataCollector, IAsyncDisposable
 	{
 		// Available export callbacks.
 		// Callbacks can be either set statically (for exporters that register themselves)

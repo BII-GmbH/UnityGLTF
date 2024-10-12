@@ -20,12 +20,17 @@ namespace UnityGLTF.Timeline
         InterpolationType InterpolationType { get; }
         
         double[] Times { get; }
+        
         object[] ValuesUntyped { get; }
         
         double? LastTime { get; }
         object? LastValueUntyped { get; }
         
         void SampleIfChanged(double time);
+        
+        // can be used to filter useless animation tracks after sampling
+        // (tracks that only have 1 or two recorded samples that do not differ from the initial value)
+        object? InitialValueUntyped => ValuesUntyped.Length > 0 ? ValuesUntyped[0] : default;
     }
 
     public interface AnimationTrack<out TObject, out TData> : AnimationTrack where TObject : Object
@@ -37,6 +42,8 @@ namespace UnityGLTF.Timeline
         TObject? AnimatedObject { get; }
         TData[] Values { get; }
         TData? LastValue { get; }
+
+        TData? InitialValue => Values.Length > 0 ? Values[0] : default;
     }
     
     internal abstract class BaseAnimationTrack<TObject, TData> : AnimationTrack<TObject, TData> where TObject : Object
@@ -59,8 +66,8 @@ namespace UnityGLTF.Timeline
 
         public double[] Times => samples.Keys.ToArray();
 
-        public double? LastTime => lastSampleTime;        
-        
+        public double? LastTime => lastSampleTime;
+
         public TData[] Values => samples.Values.ToArray();
         public TData? LastValue => lastSampleValue;
         

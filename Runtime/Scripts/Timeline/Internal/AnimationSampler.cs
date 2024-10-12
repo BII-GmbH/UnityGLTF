@@ -31,7 +31,7 @@ namespace UnityGLTF.Timeline
             var otherSamplers = new List<AnimationSampler>{
                 new TranslationSampler(useWorldSpaceForTransform),
                 new RotationSampler(useWorldSpaceForTransform),
-                //new ScaleSampler(useWorldSpaceForTransform)
+                new ScaleSampler(useWorldSpaceForTransform)
             };
             if (recordBlendShapes) {
                 otherSamplers.Add(new BlendWeightSampler());
