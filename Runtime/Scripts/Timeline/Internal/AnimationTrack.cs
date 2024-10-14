@@ -6,6 +6,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using GLTF.Schema;
 using Unity.Profiling;
+using UnityEngine;
 using Object = UnityEngine.Object;
 
 namespace UnityGLTF.Timeline
@@ -55,8 +56,7 @@ namespace UnityGLTF.Timeline
 
         private readonly IEqualityComparer<TData> equalityComparer;
 
-        private double lastSampleTime = Double.NegativeInfinity, secondToLastSampleTime = Double.NegativeInfinity;
-        private TData? lastSampleValue, secondToLastSampleValue;
+        private (double, TData)? lastSample, secondToLastSample;
         
         public TObject? AnimatedObject => sampler.getTarget(animationData.transform);
         
@@ -66,17 +66,17 @@ namespace UnityGLTF.Timeline
 
         public double[] Times => samples.Keys.ToArray();
 
-        public double? LastTime => lastSampleTime;
+        public double? LastTime => lastSample?.Item1;
 
         public TData[] Values => samples.Values.ToArray();
-        public TData? LastValue => lastSampleValue;
+        public TData? LastValue => lastSample != null ? lastSample.Value.Item2 : default;
         
         protected BaseAnimationTrack(AnimationData tr, AnimationSampler<TObject, TData> plan, double time, IEqualityComparer<TData> equalityComparer, Func<TData?, TData?>? overrideInitialValueFunc = null) {
             this.animationData = tr;
             this.sampler = plan;
             this.equalityComparer = equalityComparer;
-            this.lastSampleValue = default;
-            this.secondToLastSampleValue = default;
+            this.lastSample = default;
+            this.secondToLastSample = default;
             samples = new Dictionary<double, TData>();
             if(overrideInitialValueFunc != null)
                 recordSampleIfChanged(time, overrideInitialValueFunc(sampler.sample(animationData)));
@@ -101,6 +101,18 @@ namespace UnityGLTF.Timeline
                 using var __ = unityObjectCheck.Auto();
                 if (value == null || (value is Object o && !o)) return;
             }
+            // additional check to make sure we remove duplicate timestamps.
+            // If you think, "Why is this necessary, lets remove this": Removing this is _a bad idea_, do not do it.
+            // The resulting animations may otherwise contain the weirdest and seemingly random bugs you can imagine
+            // since this causes the below "replace consecutive equal samples"-logic to trip over
+            // its own feet and die a horrible death falling down a cliff.
+            // This will cause the _required_ doubled sample value to be skipped entirely and the resulting animation is all kinds of broken!
+            // Finding this bug cost me 3 days of my life, please don't remove this check.
+            if (LastTime.Equals(time)) {
+                if(LastValue != null && !LastValue.Equals(value))
+                    Debug.LogWarning($"Duplicate timestamp {time} with different values {LastValue} (last sample) and {value} (current sample) in animation track");
+                return;
+            }
             // As a memory optimization we want to be able to skip identical samples.
             // But, we cannot always skip samples when they are identical to the previous one - otherwise cases like this break:
             // - First assume an object is positioned at coordinates (1,2,3)
@@ -121,16 +133,14 @@ namespace UnityGLTF.Timeline
             // if the *last two* samples were identical to the current sample.
             // If that is the case we can remove/overwrite the middle sample with the new value.
             lastSampleCheck.Begin();
-            if (!double.IsNegativeInfinity(lastSampleTime) && 
-                !double.IsNegativeInfinity(secondToLastSampleTime)) {
-                var lastSampled = lastSampleValue;
-                var secondLastSampled = secondToLastSampleValue;
+            if (lastSample != null && secondToLastSample != null) {
+                var lastSampled = lastSample!.Value.Item2;
+                var secondLastSampled = secondToLastSample!.Value.Item2;
                 using var __ = lastSampleCheckEquality.Auto(); 
-                if(lastSampled != null && secondLastSampled != null &&
-                    equalityComparer.Equals(lastSampled, secondLastSampled) &&
+                if(equalityComparer.Equals(lastSampled, secondLastSampled) &&
                     equalityComparer.Equals(lastSampled, value)) {
                     using var ___ = removeLastSample.Auto();
-                    samples.Remove(lastSampleTime);
+                    samples.Remove(lastSample!.Value.Item1);
                 }
             }
 
@@ -138,10 +148,8 @@ namespace UnityGLTF.Timeline
             
             insertData.Begin();
             samples[time] = value;
-            secondToLastSampleValue = lastSampleValue;
-            secondToLastSampleTime = lastSampleTime;
-            lastSampleTime = time;
-            lastSampleValue = value;
+            secondToLastSample = lastSample;
+            lastSample = (time, value);
             insertData.End();
         }
     }
