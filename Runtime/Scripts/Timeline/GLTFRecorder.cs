@@ -686,16 +686,27 @@ namespace UnityGLTF.Timeline
 	
 	internal static class DoubleExtensions {
 		internal static bool nearlyEqual(this double a, double b, double epsilon = double.Epsilon) => Math.Abs(a - b) < epsilon;
+
+		// one microsecond
+		private const double smallestTimeDelta = 0.001;
 		
 		internal static double nextSmaller(this double d) {
-			if (!double.IsFinite(d))
-				return -double.Epsilon;
-			var bits = BitConverter.DoubleToInt64Bits(d);
-			return d switch {
-				> 0 => BitConverter.Int64BitsToDouble(bits - 1),
-				< 0 => BitConverter.Int64BitsToDouble(bits + 1),
-				_ => -double.Epsilon
-			};
+			// if the value is so large that subtracting the smallest
+			// delta does not change the value, return the next smallest value
+			if (d - smallestTimeDelta != d) return d - smallestTimeDelta;
+			else {
+				// d is so large that subtracting the smallest delta did not
+				// change the value because it lies between representable values,
+				// instead return the next smaller, representable value
+				if (!double.IsFinite(d))
+					return -double.Epsilon;
+				var bits = BitConverter.DoubleToInt64Bits(d);
+				return d switch {
+					> 0 => BitConverter.Int64BitsToDouble(bits - 1),
+					< 0 => BitConverter.Int64BitsToDouble(bits + 1),
+					_ => -double.Epsilon
+				};
+			}
 		}
 		internal static double nextLarger(this double d) {
 			if (!double.IsFinite(d))
