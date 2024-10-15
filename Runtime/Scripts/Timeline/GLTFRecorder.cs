@@ -199,9 +199,9 @@ namespace UnityGLTF.Timeline
 		public void UpdateRecordingFor(double time, IReadOnlyList<Transform> transforms) {
 			Profiler.BeginSample("Check transforms are parented properly");
 			foreach (var transform in transforms) {
-				if (!transform.IsChildOf(root))
+				if (transform && !transform.IsChildOf(root))
 					throw new InvalidOperationException(
-						"A transform passed in for recording is not parented to the recording root transform. This is not allowed"
+						$"Transform {transform.name} passed in for recording is not parented to the recording root transform. This is not allowed"
 					);
 			}
 			Profiler.EndSample();
@@ -372,8 +372,9 @@ namespace UnityGLTF.Timeline
 
 				if (visibilityTrack != null && !weHadAScaleTrack) {
 					if (visibilityTrack.Values.Length <= 2) {
-						var first = visibilityTrack.Values.First();
-						if (visibilityTrack.Values.All(v => first == v)) 
+						// use nullable to be able to distinguish "no value" from "first value is invisible"
+						bool? first = visibilityTrack.Values.Length > 0 ? visibilityTrack.Values[0] : null;
+						if (first == null || visibilityTrack.Values.All(v => first == v)) 
 							continue;
 					}
 					

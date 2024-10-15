@@ -34,7 +34,7 @@ namespace UnityGLTF.Timeline
         object? InitialValueUntyped => ValuesUntyped.Length > 0 ? ValuesUntyped[0] : default;
     }
 
-    public interface AnimationTrack<out TObject, out TData> : AnimationTrack where TObject : Object
+    public interface AnimationTrack<out TObject, TData> : AnimationTrack where TObject : Object
     {
         Object? AnimationTrack.AnimatedObjectUntyped => AnimatedObject;
         object[] AnimationTrack.ValuesUntyped => Values.Cast<object>().ToArray();
@@ -42,7 +42,7 @@ namespace UnityGLTF.Timeline
 
         TObject? AnimatedObject { get; }
         TData[] Values { get; }
-        TData? LastValue { get; }
+        (TData Value, bool HasValue)  LastValue { get; }
 
         TData? InitialValue => Values.Length > 0 ? Values[0] : default;
     }
@@ -65,15 +65,14 @@ namespace UnityGLTF.Timeline
         public double[] Times => samples.Select(t => t.Time).ToArray();
         public TData[] Values => samples.Select(t => t.Value).ToArray();
         
-        private (double Time, TData Value)? lastSample => samples.Count > 0 ? samples.Last() : default; 
-        private (double Time, TData Value)? secondToLastSample => samples.Count > 1 ? samples.SkipLast(1).Last() : default; 
+        private (double Time, TData Value)? lastSample => samples.Count > 0 ? samples.Last() : null; 
+        private (double Time, TData Value)? secondToLastSample => samples.Count > 1 ? samples.SkipLast(1).Last() : null; 
         
         public double? LastTime => lastSample?.Time ?? default;
-        public TData? LastValue => lastSample != null ? lastSample.Value.Value : default;
+        public (TData Value, bool HasValue) LastValue => lastSample != null ? (lastSample.Value.Value, true) : (default!, false);
         
         private double? secondToLastTime => secondToLastSample?.Time ?? default;
-        private TData? secondToLastValue => secondToLastSample != null ? secondToLastSample.Value.Value : default;
-
+        private (TData Value, bool HasValue) secondToLastValue => secondToLastSample != null ? (secondToLastSample.Value.Value, true) : (default!, false);
         
         protected BaseAnimationTrack(AnimationData tr, AnimationSampler<TObject, TData> plan, double time, IEqualityComparer<TData> equalityComparer, Func<TData?, TData?>? overrideInitialValueFunc = null) {
             this.animationData = tr;
@@ -119,7 +118,7 @@ namespace UnityGLTF.Timeline
             // Yeah i am not sure why either, but it definitely happens!
             // Finding this bug cost me 3 days of my life, please don't remove this check.
             if (LastTime.Equals(time)) {
-                if(LastValue != null && !LastValue.Equals(value))
+                if(LastValue.HasValue && !LastValue!.Value!.Equals(value))
                     Debug.LogWarning($"Duplicate timestamp {time} with different values {LastValue} (last sample) and {value} (current sample) in animation track");
                 return;
             }
@@ -143,9 +142,9 @@ namespace UnityGLTF.Timeline
             // if the *last two* samples were identical to the current sample.
             // If that is the case we can remove/overwrite the middle sample with the new value.
             lastSampleCheck.Begin();
-            if (LastValue != null && secondToLastValue != null) {
-                var lastSampled = LastValue;
-                var secondLastSampled = secondToLastValue;
+            if (LastValue.HasValue && secondToLastValue.HasValue) {
+                var lastSampled = LastValue.Value;
+                var secondLastSampled = secondToLastValue.Value;
                 using var __ = lastSampleCheckEquality.Auto(); 
                 if(equalityComparer.Equals(lastSampled, secondLastSampled) &&
                     equalityComparer.Equals(lastSampled, value)) {
