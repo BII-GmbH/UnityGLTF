@@ -457,178 +457,36 @@ namespace UnityGLTF.Timeline
 			var visScaleValues = visValues.Select(vis => vis ? Vector3.one : Vector3.zero).ToArray();
 			return (InterpolationType.STEP, visTimes, visScaleValues);
 		}
-		
-		
-		internal static (InterpolationType interpolation, double[] times, Vector3[] mergedScales)? mergeVisibilityAndScaleTracks(
-			AnimationTrack<GameObject, bool>? visibilityTrack,
-			AnimationTrack<Transform, Vector3>? scaleTrack
-		) {
-			if (visibilityTrack == null && scaleTrack == null) 
-				return null;
-			if (visibilityTrack == null) 
-				return (scaleTrack!.InterpolationType, scaleTrack.Times, scaleTrack.Values);
-			
-			var visTimes = visibilityTrack.Times;
-			var visValues = visibilityTrack.Values;
-			
-			if (scaleTrack == null)
-				return visibilityTrackToScaleTrack(visibilityTrack);
+
+		internal static (InterpolationType interpolation, double[] times, Vector3[] mergedScales)?
+			mergeVisibilityAndScaleTracks(
+				AnimationTrack<GameObject, bool>? visibilityTrack,
+				AnimationTrack<Transform, Vector3>? scaleTrack
+			) {
+			if (visibilityTrack == null && scaleTrack == null) return null;
+			if (visibilityTrack == null) return (scaleTrack!.InterpolationType, scaleTrack.Times, scaleTrack.Values);
+
+			if (scaleTrack == null) return visibilityTrackToScaleTrack(visibilityTrack);
 			// both tracks are present, need to merge, but visibility always takes precedence
-			
-			var scaleTimes = scaleTrack.Times;
-			var scaleValues = scaleTrack.Values;
 
-			var mergedTimes = new List<double>(visTimes.Length + scaleTimes.Length);
-			var mergedScales = new List<Vector3>(visValues.Length + scaleValues.Length);
+			// var visIndex = 0;
+			// var scaleIndex = 0;
+			//          
+			// bool? lastVisible = null;
+			// double? lastScaleTime = null;
+			// Vector3? lastScale = null;
 
-			var visIndex = 0;
-			var scaleIndex = 0;
-            
-			bool? lastVisible = null;
-			double? lastScaleTime = null;
-			Vector3? lastScale = null;
-			
+			var currentState = new MergeVisibilityAndScaleTracksCurrentState(
+				visibilityTrack.Times,
+				visibilityTrack.Values,
+				scaleTrack.Times,
+				scaleTrack.Values
+			);
+			var (mergedTimes, mergedScales) = currentState.Merge();
 			// process both
-			while (visIndex < visTimes.Length && scaleIndex < scaleTimes.Length) {
-				var visTime = visTimes[visIndex];
-				var scaleTime = scaleTimes[scaleIndex];
-				var visible = visValues[visIndex];
-				var scale = scaleValues[scaleIndex];
-				
-				if (visTime.nearlyEqual(scaleTime)) {
-					// both samples have the same timestamp
-					// choose output value depending on visibility, but use scale value if visible
-					switch (lastVisible, visible) {
-						case (true, false):
-							// visibility changed from visible to invisible
-							// use last scale value
-							if(visTime > 0)
-								record(visTime.nextSmaller(), scale);
-							record(visTime, Vector3.zero);
-							break;
-						case (true, true):
-							// both are visible, use scale value
-							record(visTime, scale);
-							break;
-						// _ to catch null and false as values
-						case (_, false):
-							// both are invisible, use scale value
-							record(visTime, Vector3.zero);
-							break;
-						case (_, true):
-							// visibility changed from invisible to visible
-							// use scale value
-							if(visTime > 0)
-								record(visTime.nextSmaller(), Vector3.zero);
-							record(visTime, scale);
-							break;
-					}
-					visIndex++;
-					scaleIndex++;
-					
-					lastScaleTime = visTime;
-					lastScale = scale;
-					lastVisible = visible;
-				} else if (visTime < scaleTime) {
-					// the next visibility change occurs sooner than the next scale change
-					// record two samples:
-					// 1) sample of the last visibility state _right_ before the change occurs to prevent linear interpolation from breaking the animation
-					// 2) Sample of the scale using visibility state and (if visible) the scale
-					// value interpolated between the last and next sample
-					
-					// both samples have the same timestamp
-					// choose output value depending on visibility, but use scale value if visible
-					switch (lastVisible, visible) {
-						case (true, false):
-							// visibility changed from visible to invisible
-							// use last scale value
-							if (visTime <= 0) {
-								// this should not be able to happen, but just in case
-								record(visTime, Vector3.zero);
-							} else {
-								var lastTime = lastScaleTime ?? visTime;
-								record(
-									visTime.nextSmaller(),
-									Vector3.LerpUnclamped(
-										lastScale ?? Vector3.one,
-										scale,
-										(float)((visTime - lastTime) / (scaleTime - lastTime))
-									)
-								);
-								record(visTime, Vector3.zero);
-							}
-							break;
-						case (true, true):
-							// both are visible, use scale value
-							break;
-						case (_, false):
-							// both are invisible, use scale value
-							break;
-						case (_, true):
-							// visibility changed from invisible to visible
-							// use scale value
-							if (visTime <= 0) {
-								record(visTime, Vector3.one);
-							} else {
-								record(visTime.nextSmaller(), Vector3.zero);
-								var last = lastScaleTime ?? visTime;
-								
-								record(
-									visTime,
-									Vector3.LerpUnclamped(
-										lastScale ?? Vector3.zero,
-										scale,
-										(float)((visTime - last) / (scaleTime - last))
-									)
-								);
-							}
-							break;
-					}
-					visIndex++;
-					
-					lastVisible = visible;
-				}
-				else if (scaleTime < visTime) {
-					// the next scale change occurs sooner than the next visibility change
-					// However, if the model is currently invisible, we simply dont care
-                    if (lastVisible ?? true) 
-	                    record(scaleTime, scale);
-                    scaleIndex++;
-                    lastScaleTime = scaleTime;
-                    lastScale = scale;
-				}
-			}
-			
-			// process remaining visibility changes - this will only enter if scale end was reached first
-			while (visIndex < visTimes.Length) {
-				var visTime = visTimes[visIndex];
-				var visible = visValues[visIndex];
-					
-				// next vis change is sooner than next scale change
-				// time: -> visTime
-				// res: visible -> lastScale : 0
-				record(visTime, visible ? (lastScale ?? Vector3.one) : Vector3.zero);
-				visIndex++;
-				
-				lastVisible = visible;
-			}
-			
-			// process remaining scale changes - this will only enter if vis end was reached first -
-			// if last visibility was invisible then there is no point in adding these
-			while ( (lastVisible ?? true) && scaleIndex < scaleTimes.Length) {
-				var scaleTime = scaleTimes[scaleIndex];
-				var scale = scaleValues[scaleIndex];
-				record(scaleTime, scale);
-			}
-			
-			return (scaleTrack.InterpolationType, mergedTimes.ToArray(), mergedScales.ToArray());
-
-			void record(double time, Vector3 scale) {
-				mergedTimes.Add(time);
-				mergedScales.Add(scale);
-			}
+			return (scaleTrack.InterpolationType, mergedTimes, mergedScales);
 		}
-		
+
 		private class StringBuilderLogHandler : ILogHandler
 		{
 			private readonly StringBuilder sb = new StringBuilder();
