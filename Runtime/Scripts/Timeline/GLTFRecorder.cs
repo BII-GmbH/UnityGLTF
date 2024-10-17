@@ -349,9 +349,9 @@ namespace UnityGLTF.Timeline
 			var gotFirstValue = false;
 			translationBounds = new Bounds();
 
-			foreach (var kvp in recordingAnimatedTransforms)
-			{
-				processAnimationMarker.Begin();
+			foreach (var kvp in recordingAnimatedTransforms) {
+				
+				using var _ = processAnimationMarker.Auto();
 				
 				var weHadAScaleTrack = false;
 				
@@ -381,8 +381,6 @@ namespace UnityGLTF.Timeline
 					var (interpolation, times, scales) = visibilityTrackToScaleTrack(visibilityTrack);
 					gltfSceneExporter.AddAnimationData(kvp.Key, "scale", anim, interpolation, times, scales.Cast<object>().ToArray());
 				}
-				
-				processAnimationMarker.End();
 			}
 		}
 
@@ -469,22 +467,17 @@ namespace UnityGLTF.Timeline
 			if (scaleTrack == null) return visibilityTrackToScaleTrack(visibilityTrack);
 			// both tracks are present, need to merge, but visibility always takes precedence
 
-			// var visIndex = 0;
-			// var scaleIndex = 0;
-			//          
-			// bool? lastVisible = null;
-			// double? lastScaleTime = null;
-			// Vector3? lastScale = null;
-
-			var currentState = new MergeVisibilityAndScaleTracksCurrentState(
+			var currentState = new MergeVisibilityAndScaleTrackMerger(
 				visibilityTrack.Times,
 				visibilityTrack.Values,
 				scaleTrack.Times,
 				scaleTrack.Values
 			);
-			var (mergedTimes, mergedScales) = currentState.Merge();
+			var merged = currentState.Merge().ToArray();
+			
 			// process both
-			return (scaleTrack.InterpolationType, mergedTimes, mergedScales);
+			return (scaleTrack.InterpolationType, merged.Select(t => t.Time).ToArray(),
+				merged.Select(t => t.mergedScale).ToArray());
 		}
 
 		private class StringBuilderLogHandler : ILogHandler
