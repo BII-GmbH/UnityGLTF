@@ -265,7 +265,7 @@ namespace UnityGLTF.Timeline
 			return true;
 		}
 		
-		public GLTFSceneExporter CreateSceneExporterAfterRecording(GLTFSettings? settings = null, ILogger? logger = null) 
+		public GLTFSceneExporter CreateSceneExporterAfterRecording(GLTFSettings? settings = null, IEnumerable<Transform>? ignoredTransforms = null, ILogger? logger = null) 
 		{
 			if (settings == null)
 			{
@@ -287,7 +287,7 @@ namespace UnityGLTF.Timeline
 				settings.BlendShapeExportProperties = GLTFSettings.BlendShapeExportPropertyFlags.None;
 			
 			var exportContext =
-				new ExportContext(settings) { AfterSceneExport = PostExport, logger = logger };
+				new ExportContext(settings, ignoredTransforms ?? Enumerable.Empty<Transform>()) { AfterSceneExport = PostExport, logger = logger };
 
 			return new GLTFSceneExporter(new Transform[] { root }, exportContext);
 		}
@@ -310,7 +310,7 @@ namespace UnityGLTF.Timeline
 			if (!EndRecording()) return;
 			
 			var logHandler = new StringBuilderLogHandler();
-			var exporter = CreateSceneExporterAfterRecording(settings, new Logger(logHandler));
+			var exporter = CreateSceneExporterAfterRecording(settings, logger: new Logger(logHandler));
 			exporter.SaveGLBToStream(stream, sceneName);
 
 			logHandler.LogAndClear();

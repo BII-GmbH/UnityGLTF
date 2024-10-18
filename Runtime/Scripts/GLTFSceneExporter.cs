@@ -29,17 +29,20 @@ namespace UnityGLTF
 		public bool TreatEmptyRootAsScene = false;
 		public bool MergeClipsWithMatchingNames = false;
 		public LayerMask ExportLayers = -1;
+		
+		internal readonly IReadOnlyCollection<Transform> ignoredTransforms;
 		public ILogger logger;
 		internal readonly GLTFSettings settings;
 
-		public ExportContext() : this(GLTFSettings.GetOrCreateSettings()) { }
+		public ExportContext() : this(GLTFSettings.GetOrCreateSettings(), Enumerable.Empty<Transform>()) { }
 
-		public ExportContext(GLTFSettings settings)
+		public ExportContext(GLTFSettings settings, IEnumerable<Transform> ignoredTransforms = null)
 		{
 			if (!settings) settings = GLTFSettings.GetOrCreateSettings();
 			if (settings.UseMainCameraVisibility)
 				ExportLayers = Camera.main ? Camera.main.cullingMask : -1;
 			this.settings = settings;
+			this.ignoredTransforms = ignoredTransforms?.ToHashSet() ?? new HashSet<Transform>();
 		}
 
 		public GLTFSceneExporter.RetrieveTexturePathDelegate TexturePathRetriever = (texture) => texture.name;
@@ -105,7 +108,7 @@ namespace UnityGLTF
 	public class ExportOptions: ExportContext
 	{
 		public ExportOptions(): base() { }
-		public ExportOptions(GLTFSettings settings): base(settings) { }
+		public ExportOptions(GLTFSettings settings): base(settings, Enumerable.Empty<Transform>()) { }
 	}
 
 	public interface AnimationDataCollector
@@ -974,9 +977,11 @@ namespace UnityGLTF
 			}
 		}
 
-		private bool ShouldExportTransform(Transform transform)
+		private bool shouldExportTransform(Transform transform)
 		{
-			// Root transforms should *always* be exported since this is a deliberate decision by the user calling - it should override any other setting that would prevent the export (e.g. if a user calls Export with disabled or hidden objects the exporter should never prevent this)
+			// Root transforms should *always* be exported since this is a deliberate decision by the user calling -
+			// it should override any other setting that would prevent the export (e.g. if a user calls Export with
+			// disabled or hidden objects the exporter should never prevent this)
 			var isRoot = _rootTransforms.Contains(transform);
 			if (isRoot) return true;
 			
@@ -986,7 +991,7 @@ namespace UnityGLTF
 			}
 			if (settings.UseMainCameraVisibility && (_exportLayerMask >= 0 && _exportLayerMask != (_exportLayerMask | 1 << transform.gameObject.layer))) return false;
 			if (transform.CompareTag("EditorOnly")) return false;
-			return true;
+			return !_exportContext.ignoredTransforms.Contains(transform);
 		}
 
 		private SceneId ExportScene(string name, Transform[] rootObjTransforms)
@@ -1198,7 +1203,7 @@ namespace UnityGLTF
 				parentOfChilds.Children = new List<NodeId>(nonPrimitives.Length);
 				foreach (var child in nonPrimitives)
 				{
-					if (!ShouldExportTransform(child.transform)) continue;
+					if (!shouldExportTransform(child.transform)) continue;
 					parentOfChilds.Children.Add(ExportNode(child.transform));
 				}
 			}
@@ -1233,7 +1238,7 @@ namespace UnityGLTF
 			var nonPrims = new List<GameObject>(childCount);
 
 			// add another primitive if the root object also has a mesh
-			if (ShouldExportTransform(transform))
+			if (shouldExportTransform(transform))
 			{
 				if (ContainsValidRenderer(transform.gameObject, settings.ExportDisabledGameObjects))
 				{
