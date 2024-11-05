@@ -229,6 +229,7 @@ namespace UnityGLTF.Timeline
 				if (!recordingAnimatedTransforms.ContainsKey(tr))
 				{
 					Profiler.BeginSample("Update Recording - Add New Transform");
+					Debug.LogWarning("Found previously unknown transform during recording.");
 					// because lastRecordedTime > 0, this will insert an "empty" frame with scale=0,0,0 at time = 0
 					// because this object just appeared in this frame
 					var emptyData = new AnimationData(animationSamplers, tr, lastRecordedTime);
@@ -539,37 +540,35 @@ namespace UnityGLTF.Timeline
 	internal static class FloatExtensions {
 		internal static bool nearlyEqual(this float a, float b, float epsilon = float.Epsilon) => Math.Abs(a - b) < epsilon;
 
-		// one microsecond
+		// This Delta time is used to offset additional samples needed for combining scale and visibility.
+		// It is set to 100 ms, which should result in a large enough margin of error
 		private const float desiredTimeDelta = 0.100f;
 		
 		// works for positive d only. PreviousD must be smaller than d
-		internal static float nextSmaller(this float d, float previousD) {
+		internal static float nextSmaller(this float time, float previousTime) {
 			// if the value is so large that subtracting the smallest
 			// delta does not change the value, return the next smallest possible value
-			if (d - desiredTimeDelta < d) {
-				var candidate = d - desiredTimeDelta;
-				if (candidate > previousD)
-					return candidate;
-				// we would create discontinuities in the animation if we returned a smaller value compared to the
-				// previous value, so do additional stuff to avoid that.
-				// This will fail if d and previousD have no representable value between them -
-				// we cant really do anything about that though
-				return previousD + 0.5f * (d - previousD);
-			}
-			else {
-				// d is so large that subtracting the smallest delta did not
-				// change the value because it lies between representable values,
-				// instead return the next smaller, representable value
-				if (!double.IsFinite(d))
-					return -float.Epsilon;
-				var bits = BitConverter.SingleToInt32Bits(d);
-				// we can directly return this without checking previous here because there are only two possibilities:
-				// (1) The candidate is smaller or equal to previous => since candidate is the next smaller possible value below d and we require previousD < d => previousD is also the first possible smaller value below d,
-				//     so we dont have any value to choose in between them anyway
-				// (2) The candidate is larger than previous => we can return the candidate because
-				//     it is larger than previous
-				return BitConverter.Int32BitsToSingle(bits - 1);
-			}
+			var candidate = time - desiredTimeDelta;
+			return candidate > previousTime && candidate < time ? candidate :
+				// we cant use the desired time delta because that would be smaller or equal to the last sampled time
+				// or the next representable value is the previous sampled time.
+				// In this case we instead use the next smallest representable value from time.
+				// In rare edge cases this might still be equal to the previous time,
+				// but we have no correct solution in that case anyway.
+				time.nextSmallerRepresentable();
+		}
+
+		internal static float nextSmallerRepresentable(this float f) {
+			if (!float.IsFinite(f))
+				return -float.Epsilon;
+			var bits = BitConverter.SingleToInt32Bits(f);
+			// We can directly return this without checking previous here because there are only two possibilities:
+			// (1) The candidate is smaller or equal to previous => since candidate is the next smaller possible
+			//     value below time, and we require previousTime < time => previousTime is also the first possible
+			//     smaller value below time, so we don't have any value to choose in between them anyway
+			// (2) The candidate is larger than previous => we can return the candidate because
+			//     it is larger than previous
+			return BitConverter.Int32BitsToSingle(bits - 1);
 		}
 	}
 }

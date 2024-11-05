@@ -37,7 +37,7 @@ namespace UnityGLTF.Timeline
             visibilityTrack = animationSamplers.VisibilitySampler?.startNewAnimationTrackAtStartOfTime(this, time);
             if (visibilityTrack != null && time > 0) {
                 // make sure to insert another sample right before the change so that the linear interpolation is very short, not from the start of time
-                visibilityTrack.recordVisibilityAt(time-float.Epsilon, visibilityTrack.LastValue is { HasValue: true, Value: true });
+                visibilityTrack.recordVisibilityAt(time.nextSmallerRepresentable(), visibilityTrack.LastValue is { HasValue: true, Value: true });
                 // if we are not at the start of time, add another visibility sample to the current time, where the object started to exist
                 visibilityTrack.SampleIfChanged(time);
             }
@@ -56,7 +56,7 @@ namespace UnityGLTF.Timeline
             visibilityTrack?.SampleIfChanged(time);
             visibilityUpdate.End();
             // if visibility is not being sampled, or the object is currently visible, sample the other tracks
-            if (visibilityTrack == null || visibilityTrack.LastValue.HasValue) {
+            if (visibilityTrack == null || visibilityTrack.LastValue is { HasValue: true, Value: true }) {
                 otherTracks.Begin();
                 foreach (var track in tracks) {
                     track.SampleIfChanged(time);

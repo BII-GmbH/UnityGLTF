@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.Contracts;
 using System.Runtime.CompilerServices;
@@ -39,15 +40,15 @@ namespace UnityGLTF.Timeline
         private void incrementScaleIndex() => scaleIndex++;
 
         public IEnumerable<(float Time, Vector3 mergedScale)> Merge() {
-            var results = MergeInternal();
-            var prevTime = 0.0;
-            // this probably does not behave correctly, but maybe it will at least remove the validation error for now
-            foreach (var (time, scale) in results) {
-                if(prevTime < time) {
-                    yield return (time, scale);
-                    prevTime = time;
-                }
-            }
+            return MergeInternal();
+            // var prevTime = 0.0;
+            // // this probably does not behave correctly, but maybe it will at least remove the validation error for now
+            // foreach (var (time, scale) in results) {
+            //     if(prevTime < time) {
+            //         yield return (time, scale);
+            //         prevTime = time;
+            //     }
+            // }
         }
 
         private IEnumerable<(float Time, Vector3 mergedScale)> MergeInternal() {
@@ -118,7 +119,7 @@ namespace UnityGLTF.Timeline
                 if (lastVisible != visible) {
                     // if the value flipped, this needs two samples - one for the previous value and
                     // then another one at the new value
-                    yield return (visTime.nextSmaller(lastVisibleTime ?? 0), (lastVisible ?? visible) ? (lastScale ?? Vector3.one) : Vector3.zero);
+                    yield return (visTime.nextSmaller(lastVisibleTime ?? visTime), (lastVisible ?? visible) ? (lastScale ?? Vector3.one) : Vector3.zero);
                 }
                 // always record one of them, otherwise the first or last values may be lost
                 yield return (visTime, visible ? (lastScale ?? Vector3.one) : Vector3.zero);
@@ -158,7 +159,6 @@ namespace UnityGLTF.Timeline
                     // both are visible, use scale value
                     yield return (time, scale);
                     break;
-                // _ to catch null and false as values
                 case (false, false):
                     break;
                 case (false, true):
@@ -175,6 +175,7 @@ namespace UnityGLTF.Timeline
         /// <param name="visible">new visibility</param>
         /// <param name="scaleTime">time at which the next scale change occurs. Expects scaleTime > visTime! This is not validated though. if this precondition is violated, the results will not be correct</param>
         /// <param name="scale">the scale that is set at scaleTime</param>
+        /// <param name="lastVisibleTime">the time of the last visibility change</param>
         /// <param name="lastVisible">the last visibility state</param>
         /// <param name="lastScaleTime">the time of the last scale change</param>
         /// <param name="lastScale">the last scale</param>
@@ -204,11 +205,11 @@ namespace UnityGLTF.Timeline
                     // visibility changed from visible to invisible
                     // use last scale value
                     
-                    yield return (visTime.nextSmaller(lastScaleTime),
+                    yield return (visTime.nextSmaller(Math.Max(lastVisibleTime, lastScaleTime)),
                         Vector3.LerpUnclamped(
                             lastScale,
                             scale,
-                            (float)((visTime - lastScaleTime) / (scaleTime - lastScaleTime))
+                            (visTime - lastScaleTime) / (scaleTime - lastScaleTime)
                         ));
                     
                     yield return (visTime, Vector3.zero);
@@ -222,12 +223,12 @@ namespace UnityGLTF.Timeline
                 case (_, true):
                     // visibility changed from invisible to visible
                     // use scale value
-                    yield return (visTime.nextSmaller(lastVisibleTime), Vector3.zero);
+                    yield return (visTime.nextSmaller(Math.Max(lastVisibleTime, lastScaleTime)), Vector3.zero);
                     yield return (visTime,
                         Vector3.LerpUnclamped(
                             lastScale,
                             scale,
-                            (float)((visTime - lastScaleTime) / (scaleTime - lastScaleTime))
+                            (visTime - lastScaleTime) / (scaleTime - lastScaleTime)
                         ));
                     break;
             }
