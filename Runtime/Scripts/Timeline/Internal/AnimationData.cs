@@ -29,7 +29,7 @@ namespace UnityGLTF.Timeline
         public AnimationData(
             AnimationSamplers animationSamplers,
             Transform transform,
-            double time
+            float time
         ) {
             this.transform = transform;
             
@@ -37,7 +37,7 @@ namespace UnityGLTF.Timeline
             visibilityTrack = animationSamplers.VisibilitySampler?.startNewAnimationTrackAtStartOfTime(this, time);
             if (visibilityTrack != null && time > 0) {
                 // make sure to insert another sample right before the change so that the linear interpolation is very short, not from the start of time
-                visibilityTrack.recordVisibilityAt(time-Double.Epsilon, visibilityTrack.LastValue is { HasValue: true, Value: true });
+                visibilityTrack.recordVisibilityAt(time-float.Epsilon, visibilityTrack.LastValue is { HasValue: true, Value: true });
                 // if we are not at the start of time, add another visibility sample to the current time, where the object started to exist
                 visibilityTrack.SampleIfChanged(time);
             }
@@ -50,7 +50,7 @@ namespace UnityGLTF.Timeline
             }
         }
 
-        public void Update(double time) {
+        public void Update(float time) {
             using var _ = updateMarker.Auto();
             visibilityUpdate.Begin();
             visibilityTrack?.SampleIfChanged(time);

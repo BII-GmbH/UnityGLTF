@@ -44,7 +44,7 @@ namespace UnityGLTF
 		///		_exporter.GetRoot().Animations.Add(_animationA);
 		///	};
 		/// </code></example>
-		public void AddAnimationData(Object animatedObject, string propertyName, GLTFAnimation animation, InterpolationType interpolationType, double[] times, object[] values)
+		public void AddAnimationData(Object animatedObject, string propertyName, GLTFAnimation animation, InterpolationType interpolationType, float[] times, object[] values)
 		{
 			if (!animatedObject) return;
 			

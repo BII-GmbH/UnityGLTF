@@ -86,8 +86,8 @@ namespace UnityGLTF.Timeline
 		
 		private readonly AnimationSamplers animationSamplers;
 
-		private double startTime;
-		private double lastRecordedTime;
+		private float startTime;
+		private float lastRecordedTime;
 		private bool hasRecording;
 		private bool isRecording;
 		
@@ -98,9 +98,9 @@ namespace UnityGLTF.Timeline
 		/// <summary>
 		/// Application Time when the most recent sample was recorded
 		/// </summary>;
-		public double LastRecordedTime => lastRecordedTime;
+		public float LastRecordedTime => lastRecordedTime;
 		
-		public double RecordingStartTime => startTime;
+		public float RecordingStartTime => startTime;
 		
 
 		public string AnimationName = "Recording";
@@ -138,13 +138,13 @@ namespace UnityGLTF.Timeline
 
 		public class PostAnimationData
 		{
-			public double[] Times;
+			public float[] Times;
 			public object[] Values;
 			
 			public Object AnimatedObject { get; }
 			public string PropertyName { get; }
 			
-			internal PostAnimationData(Object animatedObject, string propertyName, double[] times, object[] values) {
+			internal PostAnimationData(Object animatedObject, string propertyName, float[] times, object[] values) {
 				this.AnimatedObject = animatedObject;
 				this.PropertyName = propertyName;
 				this.Times = times;
@@ -152,7 +152,7 @@ namespace UnityGLTF.Timeline
 			}
 		}
 		
-		public void StartRecording(double time, bool includeInactiveTransforms = true)
+		public void StartRecording(float time, bool includeInactiveTransforms = true)
 		{
 			startTime = time;
 			lastRecordedTime = 0;
@@ -178,7 +178,7 @@ namespace UnityGLTF.Timeline
 		/// </summary>
 		/// <param name="time">time to record at</param>
 		/// <exception cref="InvalidOperationException">thrown if the recorder is not recording when this is called</exception>
-		public void UpdateRecording(double time)
+		public void UpdateRecording(float time)
 		{
 			Profiler.BeginSample("Get Transforms");
 			root.GetComponentsInChildren(true, transformCache);
@@ -196,7 +196,7 @@ namespace UnityGLTF.Timeline
 		/// <param name="transforms">the transforms for which to update the recorded state</param>
 		/// <exception cref="InvalidOperationException">thrown if the recorder is not recording when this is called or if any of the transforms passed
 		/// in is not parented directly or indirectly to the root</exception>
-		public void UpdateRecordingFor(double time, IReadOnlyList<Transform> transforms) {
+		public void UpdateRecordingFor(float time, IReadOnlyList<Transform> transforms) {
 			Profiler.BeginSample("Check transforms are parented properly");
 			foreach (var transform in transforms) {
 				if (transform && !transform.IsChildOf(root))
@@ -209,7 +209,7 @@ namespace UnityGLTF.Timeline
 			updateRecording(time, transforms);
 		}
 
-		private void updateRecording(double time, IReadOnlyList<Transform> transforms) {
+		private void updateRecording(float time, IReadOnlyList<Transform> transforms) {
 			if (!isRecording)
 			{
 				throw new InvalidOperationException($"{nameof(GLTFRecorder)} isn't recording, but {nameof(UpdateRecording)} was called. This is invalid.");
@@ -448,7 +448,7 @@ namespace UnityGLTF.Timeline
 		}
 
 		/// use this only if you only have a visibility track, no scale, otherwise use <see cref="mergeVisibilityAndScaleTracks"/> instead to merge the two 
-		internal static (InterpolationType interpolation, double[] times, Vector3[] mergedScales)
+		internal static (InterpolationType interpolation, float[] times, Vector3[] mergedScales)
 			visibilityTrackToScaleTrack(AnimationTrack<GameObject, bool> visibilityTrack) {
 			var visTimes = visibilityTrack.Times;
 			var visValues = visibilityTrack.Values;
@@ -456,7 +456,7 @@ namespace UnityGLTF.Timeline
 			return (InterpolationType.STEP, visTimes, visScaleValues);
 		}
 
-		internal static (InterpolationType interpolation, double[] times, Vector3[] mergedScales)?
+		internal static (InterpolationType interpolation, float[] times, Vector3[] mergedScales)?
 			mergeVisibilityAndScaleTracks(
 				AnimationTrack<GameObject, bool>? visibilityTrack,
 				AnimationTrack<Transform, Vector3>? scaleTrack
@@ -536,39 +536,40 @@ namespace UnityGLTF.Timeline
 		}
 	}
 	
-	internal static class DoubleExtensions {
-		internal static bool nearlyEqual(this double a, double b, double epsilon = double.Epsilon) => Math.Abs(a - b) < epsilon;
+	internal static class FloatExtensions {
+		internal static bool nearlyEqual(this float a, float b, float epsilon = float.Epsilon) => Math.Abs(a - b) < epsilon;
 
 		// one microsecond
-		private const double smallestTimeDelta = 0.001;
+		private const float desiredTimeDelta = 0.100f;
 		
-		internal static double nextSmaller(this double d) {
+		// works for positive d only. PreviousD must be smaller than d
+		internal static float nextSmaller(this float d, float previousD) {
 			// if the value is so large that subtracting the smallest
-			// delta does not change the value, return the next smallest value
-			if (d - smallestTimeDelta != d) return d - smallestTimeDelta;
+			// delta does not change the value, return the next smallest possible value
+			if (d - desiredTimeDelta < d) {
+				var candidate = d - desiredTimeDelta;
+				if (candidate > previousD)
+					return candidate;
+				// we would create discontinuities in the animation if we returned a smaller value compared to the
+				// previous value, so do additional stuff to avoid that.
+				// This will fail if d and previousD have no representable value between them -
+				// we cant really do anything about that though
+				return previousD + 0.5f * (d - previousD);
+			}
 			else {
 				// d is so large that subtracting the smallest delta did not
 				// change the value because it lies between representable values,
 				// instead return the next smaller, representable value
 				if (!double.IsFinite(d))
-					return -double.Epsilon;
-				var bits = BitConverter.DoubleToInt64Bits(d);
-				return d switch {
-					> 0 => BitConverter.Int64BitsToDouble(bits - 1),
-					< 0 => BitConverter.Int64BitsToDouble(bits + 1),
-					_ => -double.Epsilon
-				};
+					return -float.Epsilon;
+				var bits = BitConverter.SingleToInt32Bits(d);
+				// we can directly return this without checking previous here because there are only two possibilities:
+				// (1) The candidate is smaller or equal to previous => since candidate is the next smaller possible value below d and we require previousD < d => previousD is also the first possible smaller value below d,
+				//     so we dont have any value to choose in between them anyway
+				// (2) The candidate is larger than previous => we can return the candidate because
+				//     it is larger than previous
+				return BitConverter.Int32BitsToSingle(bits - 1);
 			}
-		}
-		internal static double nextLarger(this double d) {
-			if (!double.IsFinite(d))
-				return double.Epsilon;
-			var bits = BitConverter.DoubleToInt64Bits(d);
-			return d switch {
-				> 0 => BitConverter.Int64BitsToDouble(bits + 1),
-				< 0 => BitConverter.Int64BitsToDouble(bits - 1),
-				_ => double.Epsilon
-			};
 		}
 	}
 }

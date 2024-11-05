@@ -31,7 +31,7 @@ namespace Tests.Editor
         
         [Test]
         public void IfVisibilityTrackIsNull_ScaleTrackIsReturned() {
-            var times = new double[3] { 0, 0.5, 1 };
+            var times = new float[3] { 0, 0.5f, 1 };
             var values = new Vector3[3] { Vector3.one, Vector3.one, Vector3.one };
             
             scaleTrack = Substitute.For<AnimationTrack<Transform, Vector3>>();
@@ -46,7 +46,7 @@ namespace Tests.Editor
         
         [Test]
         public void IfScaleTrackIsNull_VisibilityTrackIsReturned() {
-            var times = new double[3] { 0, 0.5, 1 };
+            var times = new float[3] { 0, 0.5f, 1 };
             var values = new bool[3] { false, true, false };
             var expectedResult = new Vector3[3] { Vector3.zero, Vector3.one, Vector3.zero };
             

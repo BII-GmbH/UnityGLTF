@@ -905,7 +905,7 @@ namespace UnityGLTF
 
 					// Initialize data
 					// Bake and populate animation data
-					double[] times = null;
+					float[] times = null;
 
 					// arbitrary properties require the KHR_animation_pointer extension
 					bool sampledAnimationData = false;
@@ -1317,7 +1317,7 @@ namespace UnityGLTF
 			return curve;
 		}
 
-		private bool BakePropertyAnimation(PropertyCurve prop, float length, float bakingFramerate, float speedMultiplier, out double[] times, out object[] values)
+		private bool BakePropertyAnimation(PropertyCurve prop, float length, float bakingFramerate, float speedMultiplier, out float[] times, out object[] values)
 		{
 			times = null;
 			values = null;
@@ -1328,7 +1328,7 @@ namespace UnityGLTF
 			var nbSamples = Mathf.Max(1, Mathf.CeilToInt(length * bakingFramerate));
 			var deltaTime = length / nbSamples;
 
-			var _times = new List<double>(nbSamples * 2);
+			var _times = new List<float>(nbSamples * 2);
 			var _values = new List<object>(nbSamples * 2);
 
 			var curveCount = prop.curve.Count;

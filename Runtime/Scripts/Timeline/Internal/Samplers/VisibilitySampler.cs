@@ -25,7 +25,7 @@ namespace UnityGLTF.Timeline.Samplers
 
         public override IEqualityComparer<bool> DataComparer => EqualityComparer<bool>.Default;
 
-        internal VisibilityTrack startNewAnimationTrackAtStartOfTime(AnimationData data, double time) =>
+        internal VisibilityTrack startNewAnimationTrackAtStartOfTime(AnimationData data, float time) =>
             new VisibilityTrack(data, this, time);
 
         internal override GameObject getTarget(Transform transform) => transform.gameObject;
@@ -36,12 +36,12 @@ namespace UnityGLTF.Timeline.Samplers
 
     internal sealed class VisibilityTrack : BaseAnimationTrack<GameObject, bool>
     {
-        public VisibilityTrack(AnimationData tr, VisibilitySampler plan, double time) :
+        public VisibilityTrack(AnimationData tr, VisibilitySampler plan, float time) :
             base(tr, plan, time, plan.DataComparer, objectVisibility => {
                 var overridenVisibility = time <= 0 && objectVisibility;
                 return overridenVisibility;
             }) { }
 
-        internal void recordVisibilityAt(double time, bool visible) => recordSampleIfChanged(time, visible);
+        internal void recordVisibilityAt(float time, bool visible) => recordSampleIfChanged(time, visible);
     }
 }
