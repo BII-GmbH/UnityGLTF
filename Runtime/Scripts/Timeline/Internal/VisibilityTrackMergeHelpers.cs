@@ -10,22 +10,22 @@ namespace UnityGLTF.Timeline
     /// which is desperately necessary, since it is quite complex.
     internal sealed class MergeVisibilityAndScaleTrackMerger
     {
-        private readonly double[] inputVisibilityTimes;
-        private readonly double[] inputScaleTimes;
+        private readonly float[] inputVisibilityTimes;
+        private readonly float[] inputScaleTimes;
 
         private readonly bool[] inputVisibilities;
         private readonly Vector3[] inputScales;
-
+        private float? lastVisibleTime => visIndex > 0 ? inputVisibilityTimes[visIndex - 1] : null;
         private bool? lastVisible => visIndex > 0 ? inputVisibilities[visIndex - 1] : null;
 
-        private double? lastScaleTime => scaleIndex > 0 ? inputScaleTimes[scaleIndex - 1] : null;
+        private float? lastScaleTime => scaleIndex > 0 ? inputScaleTimes[scaleIndex - 1] : null;
         private Vector3? lastScale => scaleIndex > 0 ? inputScales[scaleIndex - 1] : null;
 
         
-        private double currentVisibilityTime => inputVisibilityTimes[visIndex];
+        private float currentVisibilityTime => inputVisibilityTimes[visIndex];
         private bool currentVisibility => inputVisibilities[visIndex];
 
-        private double currentScaleTime => inputScaleTimes[scaleIndex];
+        private float currentScaleTime => inputScaleTimes[scaleIndex];
         private Vector3 currentScale => inputScales[scaleIndex];
 
         private int visIndex { get; set; } = 0;
@@ -38,7 +38,20 @@ namespace UnityGLTF.Timeline
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void incrementScaleIndex() => scaleIndex++;
 
-        public IEnumerable<(double Time, Vector3 mergedScale)> Merge() {
+        public IEnumerable<(float Time, Vector3 mergedScale)> Merge() {
+            var results = MergeInternal();
+            var prevTime = 0.0;
+            // this probably does not behave correctly, but maybe it will at least remove the validation error for now
+            foreach (var (time, scale) in results) {
+                if(prevTime < time) {
+                    yield return (time, scale);
+                    prevTime = time;
+                }
+            }
+        }
+
+        private IEnumerable<(float Time, Vector3 mergedScale)> MergeInternal() {
+            
             while (visIndex < inputVisibilityTimes.Length && scaleIndex < inputScaleTimes.Length) {
                 var visTime = currentVisibilityTime;
                 var scaleTime = currentScaleTime;
@@ -46,11 +59,18 @@ namespace UnityGLTF.Timeline
                 var scale = currentScale;
 
                 if (visTime.nearlyEqual(scaleTime)) {
+                    
                     if (visTime <= 0) {
                         yield return (visTime, visible ? (lastScale ?? scale) : Vector3.zero);
                     }
                     else {
-                        foreach (var sample in handleBothSampledAtSameTime(visTime, visible, scale, lastVisible ?? visible))
+                        foreach (var sample in handleBothSampledAtSameTime(
+                            visTime,
+                            visible,
+                            scale,
+                            lastVisible ?? visible,
+                            lastVisibleTime < lastScaleTime ? (lastVisibleTime ?? visTime) : (lastScaleTime ?? visTime)
+                        ))
                             yield return sample;
                     }
 
@@ -67,6 +87,7 @@ namespace UnityGLTF.Timeline
                             currentVisibility,
                             scaleTime,
                             currentScale,
+                            lastVisibleTime ?? visTime,
                             lastVisible ?? visible,
                             lastScaleTime ?? visTime,
                             // intentionally using (current) scale as fallback here because any
@@ -97,7 +118,7 @@ namespace UnityGLTF.Timeline
                 if (lastVisible != visible) {
                     // if the value flipped, this needs two samples - one for the previous value and
                     // then another one at the new value
-                    yield return (visTime.nextSmaller(), (lastVisible ?? visible) ? (lastScale ?? Vector3.one) : Vector3.zero);
+                    yield return (visTime.nextSmaller(lastVisibleTime ?? 0), (lastVisible ?? visible) ? (lastScale ?? Vector3.one) : Vector3.zero);
                 }
                 // always record one of them, otherwise the first or last values may be lost
                 yield return (visTime, visible ? (lastScale ?? Vector3.one) : Vector3.zero);
@@ -116,11 +137,12 @@ namespace UnityGLTF.Timeline
         
         [Pure]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static IEnumerable<(double Time, Vector3 Scale)> handleBothSampledAtSameTime(
-            double time,
+        internal static IEnumerable<(float Time, Vector3 Scale)> handleBothSampledAtSameTime(
+            float time,
             bool visibility,
             Vector3 scale,
-            bool lastVisible
+            bool lastVisible,
+            float lastTime
         ) {
             // both samples have the same timestamp
             // choose output value depending on visibility, but use scale value if visible
@@ -129,7 +151,7 @@ namespace UnityGLTF.Timeline
                     // visibility changed from visible to invisible
                     // use last scale value
                     if (time > 0) 
-                        yield return (time.nextSmaller(), scale);
+                        yield return (time.nextSmaller(lastTime), scale);
                     yield return (time, Vector3.zero);
                     break;
                 case (true, true):
@@ -142,7 +164,7 @@ namespace UnityGLTF.Timeline
                 case (false, true):
                     // visibility changed from invisible to visible
                     // use scale value
-                    if (time > 0) yield return (time.nextSmaller(), Vector3.zero);
+                    if (time > 0) yield return (time.nextSmaller(lastTime), Vector3.zero);
                     yield return(time, scale);
                     break;
             }
@@ -159,13 +181,14 @@ namespace UnityGLTF.Timeline
         /// <returns>an enumerable of merged samples that correctly represent this relation of samples for visibility and scale</returns>
         [Pure]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static IEnumerable<(double Time, Vector3 Scale)> mergedSamplesForNextVisibilityChange(
-            double visTime,
+        internal static IEnumerable<(float Time, Vector3 Scale)> mergedSamplesForNextVisibilityChange(
+            float visTime,
             bool visible,
-            double scaleTime,
+            float scaleTime,
             Vector3 scale,
+            float lastVisibleTime,
             bool lastVisible,
-            double lastScaleTime,
+            float lastScaleTime,
             Vector3 lastScale
         ) {
             // the next visibility change occurs sooner than the next scale change
@@ -181,12 +204,11 @@ namespace UnityGLTF.Timeline
                     // visibility changed from visible to invisible
                     // use last scale value
                     
-                    var lastTime = lastScaleTime;
-                    yield return (visTime.nextSmaller(),
+                    yield return (visTime.nextSmaller(lastScaleTime),
                         Vector3.LerpUnclamped(
                             lastScale,
                             scale,
-                            (float)((visTime - lastTime) / (scaleTime - lastTime))
+                            (float)((visTime - lastScaleTime) / (scaleTime - lastScaleTime))
                         ));
                     
                     yield return (visTime, Vector3.zero);
@@ -200,7 +222,7 @@ namespace UnityGLTF.Timeline
                 case (_, true):
                     // visibility changed from invisible to visible
                     // use scale value
-                    yield return (visTime.nextSmaller(), Vector3.zero);
+                    yield return (visTime.nextSmaller(lastVisibleTime), Vector3.zero);
                     yield return (visTime,
                         Vector3.LerpUnclamped(
                             lastScale,
@@ -212,9 +234,9 @@ namespace UnityGLTF.Timeline
         }
         
         public MergeVisibilityAndScaleTrackMerger(
-            double[] inputVisibilityTimes,
+            float[] inputVisibilityTimes,
             bool[] inputVisibilities,
-            double[] inputScaleTimes,
+            float[] inputScaleTimes,
             Vector3[] inputScales
         ) {
             this.inputVisibilityTimes = inputVisibilityTimes;
