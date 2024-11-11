@@ -26,15 +26,15 @@ namespace UnityGLTF
 	    /// <param name="values">The values of the animation at the timestamp at the corresponding index</param>
 	    /// <returns></returns>
 	    [Pure]
-	    public static (float[], object[]) RemoveUnneededKeyframes(float[] times, object[] values) {
-		    if (times.Length <= 1) return (times, values);
+	    public static (IEnumerable<float>, IEnumerable<object>) RemoveUnneededKeyframes(IReadOnlyList<float> times, IReadOnlyList<object> values) {
+		    if (times.Count <= 1) return (times, values);
 
 		    using var _ = removeAnimationUnneededKeyframesMarker.Auto();
 
 		    // NOTE: This check previously allowed for slight differences in the length due to integer division.
 		    // Although it worked correctly, this _felt_ very error-prone & hard to reason about so we limit
 		    // this to the exact same length now, which is the only case that makes sense anyway.
-		    if (values.Length == times.Length) {
+		    if (values.Count == times.Count) {
 			    // This follows a very simple approach:
 			    // 1.   In  first iteration, search for any occurrences of three identical values in a row and put them in a queue.
 			    // 1.1. If we did not find any, we avoid any further work and just return the input.
@@ -46,7 +46,7 @@ namespace UnityGLTF
 			    var lastEquals = false;
 			    // cache-friendly optimized loop that only does one comparison+one AND per iteration,
 			    // re-using the last result.
-			    for (var i = 0; i < values.Length - 1; i++) {
+			    for (var i = 0; i < values.Count - 1; i++) {
 				    var nextEquals = values[i].Equals(values[i + 1]);
 				    if (lastEquals && nextEquals) {
 					    foundDuplicates.Enqueue(i);
@@ -56,17 +56,19 @@ namespace UnityGLTF
 				removeAnimationUnneededKeyframesFindDuplicatesMarker.End();
 			    if (foundDuplicates.Count <= 0) return (times, values);
 			    removeAnimationUnneededKeyframesCopyWithoutDuplicatesMarker.Begin();
-			    var t2 = new List<float>(times.Length);
-			    var v2 = new List<object>(values.Length);
+			    var t2 = new List<float>(times.Count);
+			    var v2 = new List<object>(values.Count);
 			    
 			    var nextDuplicate = foundDuplicates.Dequeue();
-			    for (var i = 0; i < values.Length; i++) {
+			    for (var i = 0; i < values.Count; i++) {
 				    if (i == nextDuplicate) {
 					    // deque may fail due to there not being any more duplicates - we dont want
 					    // to do anything different in that case since we still need to copy over
 					    // the remaining values to the new lists.
-					    // But we need to handle the case that the deque fails - so use TryDequeue
-					    var __ = foundDuplicates.TryDequeue(out nextDuplicate);
+					    // But we need to handle the case that the deque fails - so use TryDequeue.
+					    // Deque into a separate variable & assign on success to make sure an
+					    // unexpected integer return value when deque failed cannot break the logic.
+					    if (foundDuplicates.TryDequeue(out var n)) nextDuplicate = n;
 					    continue;
 				    }
 				    t2.Add(times[i]);
@@ -74,24 +76,23 @@ namespace UnityGLTF
 				    
 			    }
 			    removeAnimationUnneededKeyframesCopyWithoutDuplicatesMarker.End();
-			    return (t2.ToArray(), v2.ToArray());
+			    return (t2, v2);
 		    } else {
 			    // Note: This branch is chaos & not covered by unit tests.
 			    // I do not understand why it exists in the first place, but I do not want to outright remove it.
 			    // - When is this ever going to be hit, were it is not an actual error case?
 			    // - When is this ever going to produce the expected result?
-			    var arraySize = values.Length / times.Length;
-			    var singleFrameWeights = new object[arraySize];
-			    Array.Copy(values, 0, singleFrameWeights, 0, arraySize);
+			    var arraySize = values.Count / times.Count;
+			    var singleFrameWeights = values.Take(arraySize).ToArray(); 
 			    
-			    var t2 = new List<float>(times.Length);
-			    var v2 = new List<object>(values.Length);
+			    var t2 = new List<float>(times.Count);
+			    var v2 = new List<object>(values.Count);
 			    
 			    t2.Add(times[0]);
 			    v2.AddRange(singleFrameWeights);
 
 			    int lastExportedIndex = 0;
-			    for (int i = 1; i < times.Length - 1; i++) {
+			    for (int i = 1; i < times.Count - 1; i++) {
 				    removeAnimationUnneededKeyframesCheckIdenticalMarker.Begin();
 				    var isIdentical = arrayRangeEquals(
 					    values,
@@ -102,7 +103,7 @@ namespace UnityGLTF
 					    (i + 1) * arraySize
 				    );
 				    if (!isIdentical) {
-					    Array.Copy(values, (i - 1) * arraySize, singleFrameWeights, 0, arraySize);
+					    copy(values, (i - 1) * arraySize, singleFrameWeights, 0, arraySize);
 					    v2.AddRange(singleFrameWeights);
 					    t2.Add(times[i]);
 				    }
@@ -110,17 +111,26 @@ namespace UnityGLTF
 				    removeAnimationUnneededKeyframesCheckIdenticalMarker.End();
 			    }
 
-			    var max = times.Length - 1;
+			    var max = times.Count - 1;
 			    t2.Add(times[max]);
 			    var skipped = values.Skip((max - 1) * arraySize).ToArray();
 			    v2.AddRange(skipped.Take(arraySize));
-			    
-			    return (t2.ToArray(), v2.ToArray());
+			    return (t2, v2);
 		    }
 	    }
 
+	    private static void copy(IReadOnlyList<object> values, int from, object[] to, int start, int length) {
+		    if(values.Count <= from + length)
+			    throw new IndexOutOfRangeException("The source collection is too small to copy the requested range.");
+		    if(to.Length < start + length)
+			    throw new IndexOutOfRangeException("The destination collection is too small to copy the requested range.");
+		    for (var i = from; i < length; i++) {
+			    to[start + i] = values[from + i];
+		    }
+	    }
+	    
 	    private static bool arrayRangeEquals(
-		    object[] array,
+		    IReadOnlyList<object> array,
 		    int sectionLength,
 		    int lastExportedSectionStart,
 		    int prevSectionStart,
