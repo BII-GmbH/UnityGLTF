@@ -114,7 +114,6 @@ namespace UnityGLTF
 				if (Application.isPlaying && !MeshIsReadable(meshObj))
 				{
 					Debug.LogWarning($"The mesh {meshObj.name} is not readable. Skipping", null);
-					collectPrimitivesMarker.End();
 					return null;
 				}
 

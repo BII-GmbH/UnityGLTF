@@ -1,22 +1,8 @@
 using System.Collections.Generic;
-using GLTF.Schema;
 using UnityEngine;
 
 namespace UnityGLTF.Timeline.Samplers
 {
-    internal readonly struct Visibility
-    {
-        public readonly bool Visible;
-
-        public Visibility(bool visible) => Visible = visible;
-
-        public override bool Equals(object obj) => obj is Visibility o && Equals(o);
-
-        public bool Equals(Visibility other) => Visible == other.Visible;
-
-        public override int GetHashCode() => Visible.GetHashCode();
-    }
-
     internal sealed class VisibilitySampler : AnimationSampler<GameObject, bool>
     {
         public override string PropertyName => "visibility";

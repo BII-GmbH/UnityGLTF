@@ -3,12 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using GLTF.Schema;
 using GLTF.Schema.KHR_lights_punctual;
-using GLTF.Utilities;
 using UnityEngine;
 using UnityGLTF.Extensions;
 using UnityGLTF.JsonPointer;
 using UnityGLTF.Plugins;
-using UnityGLTF.Timeline;
 using AnimationSampler = GLTF.Schema.AnimationSampler;
 using Object = UnityEngine.Object;
 

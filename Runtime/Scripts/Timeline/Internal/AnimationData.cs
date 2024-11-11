@@ -1,9 +1,7 @@
 #nullable enable
-using System;
 using System.Collections.Generic;
 using Unity.Profiling;
 using UnityEngine;
-using UnityEngine.Profiling;
 using UnityGLTF.Timeline.Samplers;
 
 namespace UnityGLTF.Timeline
