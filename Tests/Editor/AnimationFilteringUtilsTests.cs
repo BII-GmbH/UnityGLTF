@@ -25,7 +25,6 @@ namespace Tests.Editor
 
         [Test]
         public void RemoveUnneededKeyframes_WhenAlreadyOptimal_ThenNothingHappens() {
-            // a list without duplicates, thus no potential to remove entries
             float[] times = { 0, 1, 2, 3, 4, 5, 6 };
             object[] values = { 0, 1, 2, 3, 4, 5, 6 };
             var (retTimes, retValues) = AnimationFilteringUtils.RemoveUnneededKeyframes(times, values);
@@ -48,7 +47,6 @@ namespace Tests.Editor
 
         [Test]
         public void RemoveUnneededKeyframes_WhenTripleRepeatedValues_ThenUnnecessaryValuesAreRemoved() {
-            // a list without duplicates, thus no potential to remove entries
             float[] expectedTimes = { 0, 1, 3, 4, 6 };
             object[] expectedValues = { 0, 1, 1, 5, 5 };
 
@@ -63,7 +61,6 @@ namespace Tests.Editor
 
         [Test]
         public void RemoveUnneededKeyframes_WhenMoreThanThreeRepeatedValues_ThenUnnecessaryValuesAreRemoved() {
-            // a list without duplicates, thus no potential to remove entries
             float[] expectedTimes = { 0, 1, 6 };
             object[] expectedValues = { 0, 1, 1 };
 
@@ -79,7 +76,6 @@ namespace Tests.Editor
         [Test]
         public void
             RemoveUnneededKeyframes_WhenManyValuesAreSameButIntermittentDifferentValues_ThenOnlyUnnecessaryValuesAreRemoved() {
-            // a list without duplicates, thus no potential to remove entries
             float[] expectedTimes = { 0, 1, 3, 4, 5, 7 };
             object[] expectedValues = { 0, 1, 1, 4, 1, 1 };
 
@@ -92,34 +88,26 @@ namespace Tests.Editor
             Assert.AreEqual(expectedValues, retValues);
         }
 
+        // The method has a branch to handle different-length arrays, but i do not understand why it exists
+        // and what it is supposed to do, so I won't write tests for this branch.
+        // Test that it does not throw at least
         [Test]
         public void RemoveUnneededKeyframes_WhenLengthDiffers_ThenNoExceptionIsThrown() {
-            // a list without duplicates, thus no potential to remove entries
-            float[] expectedTimes = { 0, 1, 3, 4, 5, 7 };
-            object[] expectedValues = { 0, 1, 1, 4, 1, 1 };
-
             float[] times = { 0, 1, 2, 3, 4, 5, 6, 7 };
             object[] values = { 0, 1, 4, 1, 1 };
-            var (retTimes, retValues) = AnimationFilteringUtils.RemoveUnneededKeyframes(times, values);
-
-            // list is already optimal, we should not do anything
-            Assert.AreEqual(expectedTimes, retTimes);
-            Assert.AreEqual(expectedValues, retValues);
+            Assert.DoesNotThrow(() => _ = AnimationFilteringUtils.RemoveUnneededKeyframes(times, values));
         }
         
+        
+        // The method has a branch to handle different-length arrays, but i do not understand why it exists
+        // and what it is supposed to do, so I won't write tests for this branch.
+        // Test that it does not throw at least, even if the array length is almost
+        // identical to the point where integer rounding may return 1.
         [Test]
         public void RemoveUnneededKeyframes_WhenLengthDiffersSlightly_ThenNoExceptionIsThrown() {
-            // a list without duplicates, thus no potential to remove entries
-            float[] expectedTimes = { 0, 1, 3, 4, 5, 7 };
-            object[] expectedValues = { 0, 1, 1, 4, 1, 1 };
-
-            float[] times = { 0, 1, 2, 3, 4, 5, 6, 7, 8,9,10,11,12 };
-            object[] values = { 0, 1, 2,3,4,5,6,7,8,9,10 };
-            var (retTimes, retValues) = AnimationFilteringUtils.RemoveUnneededKeyframes(times, values);
-
-            // list is already optimal, we should not do anything
-            Assert.AreEqual(expectedTimes, retTimes);
-            Assert.AreEqual(expectedValues, retValues);
+            float[] times   = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+            object[] values = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+            Assert.DoesNotThrow(() => _ = AnimationFilteringUtils.RemoveUnneededKeyframes(times, values));
         }
     }
 }

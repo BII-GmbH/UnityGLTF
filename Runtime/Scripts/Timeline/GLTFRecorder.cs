@@ -235,8 +235,7 @@ namespace UnityGLTF.Timeline
 					var emptyData = new AnimationData(animationSamplers, tr, lastRecordedTime);
 					recordingAnimatedTransforms.Add(tr, emptyData);
 					Profiler.EndSample();
-				}
-				recordingAnimatedTransforms[tr].Update(timeSinceStart);
+				} else { recordingAnimatedTransforms[tr].Update(timeSinceStart); }
 			}
 			lastRecordedTime = time;
 		}
