@@ -196,7 +196,7 @@ namespace UnityGLTF.Timeline
 		/// <param name="transforms">the transforms for which to update the recorded state</param>
 		/// <exception cref="InvalidOperationException">thrown if the recorder is not recording when this is called or if any of the transforms passed
 		/// in is not parented directly or indirectly to the root</exception>
-		public void UpdateRecordingFor(float time, IReadOnlyList<Transform> transforms) {
+		public void UpdateRecordingFor(float time, IReadOnlyCollection<Transform> transforms) {
 			Profiler.BeginSample("Check transforms are parented properly");
 			foreach (var transform in transforms) {
 				if (transform && !transform.IsChildOf(root))
@@ -209,7 +209,7 @@ namespace UnityGLTF.Timeline
 			updateRecording(time, transforms);
 		}
 
-		private void updateRecording(float time, IReadOnlyList<Transform> transforms) {
+		private void updateRecording(float time, IReadOnlyCollection<Transform> transforms) {
 			if (!isRecording)
 			{
 				throw new InvalidOperationException($"{nameof(GLTFRecorder)} isn't recording, but {nameof(UpdateRecording)} was called. This is invalid.");
