@@ -25,27 +25,50 @@ namespace UnityGLTF
 		    var arraySize = values.Length / times.Length;
 
 		    if (arraySize == 1) {
-			    t2.Add(times[0]);
-			    v2.Add(values[0]);
+			    // t2.Add(times[0]);
+			    // v2.Add(values[0]);
 
-			    int lastExportedIndex = 0;
-			    for (int i = 1; i < times.Length - 1; i++) {
-				    removeAnimationUnneededKeyframesCheckIdenticalMarker.Begin();
-				    var isIdentical = (lastExportedIndex >= i - 1 || values[lastExportedIndex].Equals(values[i]))
-					    && values[i - 1].Equals(values[i])
-					    && values[i].Equals(values[i + 1]);
-				    if (!isIdentical) {
-					    lastExportedIndex = i;
-					    t2.Add(times[i]);
-					    v2.Add(values[i]);
+			    var foundDuplicates = new Queue<int>();
+			    bool lastEquals = false;
+			    for (int i = 0; i < values.Length - 1; i++) {
+				    var nextEquals = values[i].Equals(values[i + 1]);
+				    if (lastEquals && nextEquals) {
+					    foundDuplicates.Enqueue(i);
 				    }
-
-				    removeAnimationUnneededKeyframesCheckIdenticalMarker.End();
+				    lastEquals = nextEquals;
 			    }
 
-			    var max = times.Length - 1;
-			    t2.Add(times[max]);
-			    v2.Add(values[max]);
+			    if (foundDuplicates.Count <= 0) return (times, values);
+
+			    var nextDuplicate = foundDuplicates.Dequeue();
+			    for (int i = 0; i < values.Length; i++) {
+				    if (i == nextDuplicate) {
+					    foundDuplicates.TryDequeue(out nextDuplicate);
+					    continue;
+				    }
+				    t2.Add(times[i]);
+				    v2.Add(values[i]);
+				    
+			    }
+
+			    // int lastExportedIndex = 0;
+			    // for (int i = 1; i < times.Length - 1; i++) {
+			    //  removeAnimationUnneededKeyframesCheckIdenticalMarker.Begin();
+			    //  var isIdentical = (lastExportedIndex >= i - 1 || values[lastExportedIndex].Equals(values[i]))
+			    //   && values[i - 1].Equals(values[i])
+			    //   && values[i].Equals(values[i + 1]);
+			    //  if (!isIdentical) {
+			    //   lastExportedIndex = i;
+			    //   t2.Add(times[i]);
+			    //   v2.Add(values[i]);
+			    //  }
+			    //
+			    //  removeAnimationUnneededKeyframesCheckIdenticalMarker.End();
+			    // }
+			    //
+			    // var max = times.Length - 1;
+			    // t2.Add(times[max]);
+			    // v2.Add(values[max]);
 		    }
 		    else {
 			    var singleFrameWeights = new object[arraySize];
