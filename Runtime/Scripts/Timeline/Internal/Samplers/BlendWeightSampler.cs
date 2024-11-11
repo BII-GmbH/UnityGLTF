@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using GLTF.Schema;
 using UnityEngine;
 
 namespace UnityGLTF.Timeline.Samplers
@@ -8,7 +7,7 @@ namespace UnityGLTF.Timeline.Samplers
     {
         public override string PropertyName => "weights";
 
-        public override InterpolationType InterpolationType => InterpolationType.LINEAR;
+        public override AnimationInterpolationType InterpolationType => AnimationInterpolationType.LINEAR;
 
         public override IEqualityComparer<float[]> DataComparer => EqualityComparer<float[]>.Default;
         

@@ -117,7 +117,7 @@ namespace UnityGLTF
 			Object animatedObject,
 			string propertyName,
 			GLTFAnimation animation,
-			InterpolationType interpolationType,
+			AnimationInterpolationType interpolationType,
 			float[] times,
 			object[] values
 		);

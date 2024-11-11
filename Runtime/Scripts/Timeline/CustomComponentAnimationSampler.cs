@@ -1,6 +1,5 @@
 #nullable enable
 using System.Collections.Generic;
-using GLTF.Schema;
 using UnityEngine;
 
 namespace UnityGLTF.Timeline
@@ -10,7 +9,7 @@ namespace UnityGLTF.Timeline
     public interface CustomComponentAnimationSampler
     {
         public string PropertyName { get; }
-        InterpolationType InterpolationType { get; }
+        AnimationInterpolationType InterpolationType { get; }
         internal Component? GetTarget(Transform transform);
     }
     

@@ -7,7 +7,6 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using GLTF.Schema;
-using JetBrains.Annotations;
 using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.Profiling;
@@ -449,15 +448,15 @@ namespace UnityGLTF.Timeline
 		}
 
 		/// use this only if you only have a visibility track, no scale, otherwise use <see cref="mergeVisibilityAndScaleTracks"/> instead to merge the two 
-		internal static (InterpolationType interpolation, float[] times, Vector3[] mergedScales)
+		internal static (AnimationInterpolationType interpolation, float[] times, Vector3[] mergedScales)
 			visibilityTrackToScaleTrack(AnimationTrack<GameObject, bool> visibilityTrack) {
 			var visTimes = visibilityTrack.Times;
 			var visValues = visibilityTrack.Values;
 			var visScaleValues = visValues.Select(vis => vis ? Vector3.one : Vector3.zero).ToArray();
-			return (InterpolationType.STEP, visTimes, visScaleValues);
+			return (AnimationInterpolationType.STEP, visTimes, visScaleValues);
 		}
 
-		internal static (InterpolationType interpolation, float[] times, Vector3[] mergedScales)?
+		internal static (AnimationInterpolationType interpolation, float[] times, Vector3[] mergedScales)?
 			mergeVisibilityAndScaleTracks(
 				AnimationTrack<GameObject, bool>? visibilityTrack,
 				AnimationTrack<Transform, Vector3>? scaleTrack

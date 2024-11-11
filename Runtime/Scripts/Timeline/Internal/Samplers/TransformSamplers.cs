@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using GLTF.Schema;
 using UnityEngine;
 
 namespace UnityGLTF.Timeline.Samplers
@@ -12,7 +11,7 @@ namespace UnityGLTF.Timeline.Samplers
 
         public override string PropertyName => "translation";
 
-        public override InterpolationType InterpolationType => InterpolationType.LINEAR;
+        public override AnimationInterpolationType InterpolationType => AnimationInterpolationType.LINEAR;
 
         public override IEqualityComparer<Vector3> DataComparer => EqualityComparer<Vector3>.Default;
         internal override Transform getTarget(Transform transform) => transform;
@@ -27,7 +26,7 @@ namespace UnityGLTF.Timeline.Samplers
         public RotationSampler(Func<Transform, bool> sampleInWorldSpace) => this.sampleInWorldSpace = sampleInWorldSpace;
         public override string PropertyName => "rotation";
 
-        public override InterpolationType InterpolationType => InterpolationType.LINEAR;
+        public override AnimationInterpolationType InterpolationType => AnimationInterpolationType.LINEAR;
 
         public override IEqualityComparer<Quaternion> DataComparer => EqualityComparer<Quaternion>.Default;
         internal override Transform getTarget(Transform transform) => transform;
@@ -42,7 +41,7 @@ namespace UnityGLTF.Timeline.Samplers
         
         public override string PropertyName => "scale";
 
-        public override InterpolationType InterpolationType => InterpolationType.LINEAR;
+        public override AnimationInterpolationType InterpolationType => AnimationInterpolationType.LINEAR;
 
         public override IEqualityComparer<Vector3> DataComparer => EqualityComparer<Vector3>.Default;
         internal override Transform getTarget(Transform transform) => transform;

@@ -8,6 +8,8 @@ using UnityEngine;
 using UnityGLTF.Extensions;
 using UnityGLTF.JsonPointer;
 using UnityGLTF.Plugins;
+using UnityGLTF.Timeline;
+using AnimationSampler = GLTF.Schema.AnimationSampler;
 using Object = UnityEngine.Object;
 
 namespace UnityGLTF
@@ -44,7 +46,7 @@ namespace UnityGLTF
 		///		_exporter.GetRoot().Animations.Add(_animationA);
 		///	};
 		/// </code></example>
-		public void AddAnimationData(Object animatedObject, string propertyName, GLTFAnimation animation, InterpolationType interpolationType, float[] times, object[] values)
+		public void AddAnimationData(Object animatedObject, string propertyName, GLTFAnimation animation, AnimationInterpolationType interpolationType, float[] times, object[] values)
 		{
 			if (!animatedObject) return;
 			
@@ -263,7 +265,7 @@ namespace UnityGLTF
 
 			AnimationSampler Tsampler = new AnimationSampler();
 			Tsampler.Input = timeAccessor;
-			Tsampler.Interpolation = interpolationType;
+			Tsampler.Interpolation = interpolationType.ToSchemaEnum();
 			
 			// for cases where one property needs to be split up into multiple tracks
 			// example: emissiveFactor * emissiveStrength

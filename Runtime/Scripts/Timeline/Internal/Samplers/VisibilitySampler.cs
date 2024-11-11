@@ -21,7 +21,7 @@ namespace UnityGLTF.Timeline.Samplers
     {
         public override string PropertyName => "visibility";
 
-        public override InterpolationType InterpolationType => InterpolationType.STEP;
+        public override AnimationInterpolationType InterpolationType => AnimationInterpolationType.STEP;
 
         public override IEqualityComparer<bool> DataComparer => EqualityComparer<bool>.Default;
 

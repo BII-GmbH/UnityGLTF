@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using GLTF.Schema;
 using UnityEngine;
 
 namespace UnityGLTF.Timeline.Samplers
@@ -8,7 +7,7 @@ namespace UnityGLTF.Timeline.Samplers
     {
         public override string PropertyName => "baseColorFactor";
 
-        public override InterpolationType InterpolationType => InterpolationType.LINEAR;
+        public override AnimationInterpolationType InterpolationType => AnimationInterpolationType.LINEAR;
 
         public override IEqualityComparer<Color?> DataComparer => EqualityComparer<Color?>.Default;
 

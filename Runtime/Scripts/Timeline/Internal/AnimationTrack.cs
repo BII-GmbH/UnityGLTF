@@ -1,10 +1,7 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using System.Runtime.CompilerServices;
-using GLTF.Schema;
 using Unity.Profiling;
 using UnityEngine;
 using Object = UnityEngine.Object;
@@ -16,7 +13,7 @@ namespace UnityGLTF.Timeline
         Object? AnimatedObjectUntyped { get; }
         string PropertyName { get; }
      
-        InterpolationType InterpolationType { get; }
+        AnimationInterpolationType InterpolationType { get; }
         
         float[] Times { get; }
         
@@ -60,7 +57,7 @@ namespace UnityGLTF.Timeline
         
         public string PropertyName => sampler.PropertyName;
 
-        public InterpolationType InterpolationType => sampler.InterpolationType;
+        public AnimationInterpolationType InterpolationType => sampler.InterpolationType;
 
         public float[] Times => samples.Select(t => t.Time).ToArray();
         public TData[] Values => samples.Select(t => t.Value).ToArray();
@@ -163,4 +160,6 @@ namespace UnityGLTF.Timeline
     {
         public AnimationTrackImpl(AnimationData tr, AnimationSampler<TObject, TData> plan, float time, IEqualityComparer<TData> dataComparer) : base(tr, plan, time, dataComparer) { }
     }
+
+    
 }

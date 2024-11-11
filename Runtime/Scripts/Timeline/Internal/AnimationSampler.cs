@@ -1,8 +1,6 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
-using GLTF.Schema;
-using JetBrains.Annotations;
 using UnityEngine;
 using UnityGLTF.Timeline.Samplers;
 using Object = UnityEngine.Object;
@@ -61,7 +59,7 @@ namespace UnityGLTF.Timeline
     {
         public string PropertyName { get; }
         
-        public InterpolationType InterpolationType { get; }
+        public AnimationInterpolationType InterpolationType { get; }
         
         object? Sample(AnimationData data);
 
@@ -74,7 +72,7 @@ namespace UnityGLTF.Timeline
         where TObject : UnityEngine.Object
     {
         public abstract string PropertyName { get; }
-        public abstract InterpolationType InterpolationType { get; }
+        public abstract AnimationInterpolationType InterpolationType { get; }
         public Type dataType => typeof(TData);
 
         public abstract IEqualityComparer<TData> DataComparer { get; }
@@ -99,7 +97,7 @@ namespace UnityGLTF.Timeline
 
         public override string PropertyName => customSampler.PropertyName;
 
-        public override InterpolationType InterpolationType => customSampler.InterpolationType;
+        public override AnimationInterpolationType InterpolationType => customSampler.InterpolationType;
 
         public override IEqualityComparer<TData> DataComparer => customSampler.EqualityComparer;
 
