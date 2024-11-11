@@ -442,8 +442,9 @@ namespace UnityGLTF.Timeline
 				}
 			}
 			
-			// TODO FIlter tracks that only have one or two samples that dont change the default value
-			//GLTFSceneExporter.RemoveUnneededKeyframes(ref trackTimes, ref trackValues);
+			var (filteredTimes, filteredValues) = AnimationFilteringUtils.RemoveUnneededKeyframes(trackTimes, trackValues);
+			(trackTimes, trackValues) = (filteredTimes.ToArray(), filteredValues.ToArray());
+			
 			gltfSceneExporter.AddAnimationData(track.AnimatedObjectUntyped, track.PropertyName, animation, track.InterpolationType, trackTimes, trackValues);
 		}
 
@@ -544,7 +545,7 @@ namespace UnityGLTF.Timeline
 		private const float desiredTimeDelta = 0.100f;
 		
 		// works for positive d only. PreviousD must be smaller than d
-		internal static float nextSmaller(this float time, float previousTime) {
+		internal static float nextSmaller(this float time, float previousTime = 0.0f) {
 			// if the value is so large that subtracting the smallest
 			// delta does not change the value, return the next smallest possible value
 			var candidate = time - desiredTimeDelta;

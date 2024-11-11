@@ -11,8 +11,6 @@ using Object = UnityEngine.Object;
 
 namespace UnityGLTF.Timeline
 {
-    public sealed class AnimationTrackId { }
-    
     public interface AnimationTrack
     {
         Object? AnimatedObjectUntyped { get; }
@@ -42,6 +40,8 @@ namespace UnityGLTF.Timeline
 
         TObject? AnimatedObject { get; }
         TData[] Values { get; }
+        
+        // Semantically this is an Option<TData>.
         (TData Value, bool HasValue)  LastValue { get; }
 
         TData? InitialValue => Values.Length > 0 ? Values[0] : default;
@@ -54,7 +54,7 @@ namespace UnityGLTF.Timeline
         private readonly AnimationData animationData;
         private readonly AnimationSampler<TObject, TData> sampler;
 
-        private readonly IEqualityComparer<TData> equalityComparer;
+        private readonly IEqualityComparer<TData> dataComparer;
         
         public TObject? AnimatedObject => sampler.getTarget(animationData.transform);
         
@@ -68,16 +68,15 @@ namespace UnityGLTF.Timeline
         private (float Time, TData Value)? lastSample => samples.Count > 0 ? samples.Last() : null; 
         private (float Time, TData Value)? secondToLastSample => samples.Count > 1 ? samples.SkipLast(1).Last() : null; 
         
-        public float? LastTime => lastSample?.Time ?? default;
+        public float? LastTime => lastSample?.Time;
         public (TData Value, bool HasValue) LastValue => lastSample != null ? (lastSample.Value.Value, true) : (default!, false);
         
-        private double? secondToLastTime => secondToLastSample?.Time ?? default;
         private (TData Value, bool HasValue) secondToLastValue => secondToLastSample != null ? (secondToLastSample.Value.Value, true) : (default!, false);
         
-        protected BaseAnimationTrack(AnimationData tr, AnimationSampler<TObject, TData> plan, float time, IEqualityComparer<TData> equalityComparer, Func<TData?, TData?>? overrideInitialValueFunc = null) {
+        protected BaseAnimationTrack(AnimationData tr, AnimationSampler<TObject, TData> plan, float time, IEqualityComparer<TData> dataComparer, Func<TData?, TData?>? overrideInitialValueFunc = null) {
             this.animationData = tr;
             this.sampler = plan;
-            this.equalityComparer = equalityComparer;
+            this.dataComparer = dataComparer;
             samples = new List<(float, TData)>();
             if(overrideInitialValueFunc != null)
                 recordSampleIfChanged(time, overrideInitialValueFunc(sampler.sample(animationData)));
@@ -145,8 +144,8 @@ namespace UnityGLTF.Timeline
                 var lastSampled = LastValue.Value;
                 var secondLastSampled = secondToLastValue.Value;
                 using var __ = lastSampleCheckEquality.Auto(); 
-                if(equalityComparer.Equals(lastSampled, secondLastSampled) &&
-                    equalityComparer.Equals(lastSampled, value)) {
+                if(dataComparer.Equals(lastSampled, secondLastSampled) &&
+                    dataComparer.Equals(lastSampled, value)) {
                     using var ___ = removeLastSample.Auto();
                     samples.RemoveAt(samples.Count - 1);
                 }
@@ -162,6 +161,6 @@ namespace UnityGLTF.Timeline
 
     internal sealed class AnimationTrackImpl<TObject, TData> : BaseAnimationTrack<TObject, TData> where TObject : Object
     {
-        public AnimationTrackImpl(AnimationData tr, AnimationSampler<TObject, TData> plan, float time, IEqualityComparer<TData> equalityComparer) : base(tr, plan, time, equalityComparer) { }
+        public AnimationTrackImpl(AnimationData tr, AnimationSampler<TObject, TData> plan, float time, IEqualityComparer<TData> dataComparer) : base(tr, plan, time, dataComparer) { }
     }
 }

@@ -40,19 +40,7 @@ namespace UnityGLTF.Timeline
         private void incrementScaleIndex() => scaleIndex++;
 
         public IEnumerable<(float Time, Vector3 mergedScale)> Merge() {
-            return MergeInternal();
-            // var prevTime = 0.0;
-            // // this probably does not behave correctly, but maybe it will at least remove the validation error for now
-            // foreach (var (time, scale) in results) {
-            //     if(prevTime < time) {
-            //         yield return (time, scale);
-            //         prevTime = time;
-            //     }
-            // }
-        }
-
-        private IEnumerable<(float Time, Vector3 mergedScale)> MergeInternal() {
-            
+            var lastRecordedTime = 0.0f;
             while (visIndex < inputVisibilityTimes.Length && scaleIndex < inputScaleTimes.Length) {
                 var visTime = currentVisibilityTime;
                 var scaleTime = currentScaleTime;
@@ -70,11 +58,12 @@ namespace UnityGLTF.Timeline
                             visible,
                             scale,
                             lastVisible ?? visible,
-                            lastVisibleTime < lastScaleTime ? (lastVisibleTime ?? visTime) : (lastScaleTime ?? visTime)
+                            lastRecordedTime
                         ))
                             yield return sample;
                     }
 
+                    lastRecordedTime = visTime;
                     incrementVisIndex();
                     incrementScaleIndex();
                 }
@@ -88,9 +77,9 @@ namespace UnityGLTF.Timeline
                             currentVisibility,
                             scaleTime,
                             currentScale,
-                            lastVisibleTime ?? visTime,
+                            lastVisibleTime ?? lastRecordedTime,
                             lastVisible ?? visible,
-                            lastScaleTime ?? visTime,
+                            lastScaleTime ?? lastRecordedTime,
                             // intentionally using (current) scale as fallback here because any
                             // other default feels even more unexpected. Note that this
                             // case should never actually happen in reality since creating
@@ -100,14 +89,15 @@ namespace UnityGLTF.Timeline
                         )) { yield return (time, value); }
                     }
 
+                    lastRecordedTime = visTime;
                     incrementVisIndex();
-                }
-                else if (scaleTime < visTime) {
+                } else if (scaleTime < visTime) {
                     // the next scale change occurs sooner than the next visibility change
                     // However, if the model is currently invisible, we simply dont care
                     if (lastVisible ?? visible) 
                         yield return (scaleTime, scale);
 
+                    lastRecordedTime = scaleTime;
                     incrementScaleIndex();
                 }
             }
@@ -119,7 +109,7 @@ namespace UnityGLTF.Timeline
                 if (lastVisible != visible) {
                     // if the value flipped, this needs two samples - one for the previous value and
                     // then another one at the new value
-                    yield return (visTime.nextSmaller(lastVisibleTime ?? visTime), (lastVisible ?? visible) ? (lastScale ?? Vector3.one) : Vector3.zero);
+                    yield return (visTime.nextSmaller(lastVisibleTime ?? lastRecordedTime), (lastVisible ?? visible) ? (lastScale ?? Vector3.one) : Vector3.zero);
                 }
                 // always record one of them, otherwise the first or last values may be lost
                 yield return (visTime, visible ? (lastScale ?? Vector3.one) : Vector3.zero);
