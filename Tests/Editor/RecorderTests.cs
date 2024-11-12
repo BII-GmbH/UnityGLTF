@@ -5,6 +5,7 @@ using GLTF.Schema;
 using NSubstitute;
 using NUnit.Framework;
 using UnityEngine;
+using UnityGLTF;
 using UnityGLTF.Timeline;
 using UnityGLTF.Timeline.Samplers;
 
@@ -56,7 +57,7 @@ namespace Tests.Editor
             
             var result = GLTFRecorder.mergeVisibilityAndScaleTracks(visibilityTrack, scaleTrack);
             Assert.IsNotNull(result);
-            Assert.AreEqual(InterpolationType.STEP, result!.Value.interpolation);
+            Assert.AreEqual(AnimationInterpolationType.STEP, result!.Value.interpolation);
             Assert.AreEqual(times, result!.Value.times);
             Assert.AreEqual(expectedResult, result!.Value.mergedScales);
         }
