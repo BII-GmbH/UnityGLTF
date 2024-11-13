@@ -66,7 +66,7 @@ namespace UnityGLTF
 					    // to do anything different in that case since we still need to copy over
 					    // the remaining values to the new lists.
 					    // But we need to handle the case that the deque fails - so use TryDequeue.
-					    // Deque into a separate variable & assign on success to make sure an
+					    // Dequeue into a separate variable & assign on success to make sure an
 					    // unexpected integer return value when deque failed cannot break the logic.
 					    if (foundDuplicates.TryDequeue(out var n)) nextDuplicate = n;
 					    continue;
