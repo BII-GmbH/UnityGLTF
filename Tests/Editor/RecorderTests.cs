@@ -1,13 +1,9 @@
 #nullable enable
-using System;
-using System.Linq;
-using GLTF.Schema;
 using NSubstitute;
 using NUnit.Framework;
 using UnityEngine;
 using UnityGLTF;
 using UnityGLTF.Timeline;
-using UnityGLTF.Timeline.Samplers;
 
 namespace Tests.Editor
 {
