@@ -62,7 +62,7 @@ namespace UnityGLTF
 			    var nextDuplicate = foundDuplicates.Dequeue();
 			    for (var i = 0; i < values.Count; i++) {
 				    if (i == nextDuplicate) {
-					    // deque may fail due to there not being any more duplicates - we dont want
+					    // dequeue may fail due to there not being any more duplicates - we dont want
 					    // to do anything different in that case since we still need to copy over
 					    // the remaining values to the new lists.
 					    // But we need to handle the case that the deque fails - so use TryDequeue.
