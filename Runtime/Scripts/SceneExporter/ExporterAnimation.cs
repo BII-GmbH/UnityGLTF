@@ -905,7 +905,7 @@ namespace UnityGLTF
 
 					// Initialize data
 					// Bake and populate animation data
-					double[] times = null;
+					float[] times = null;
 
 					// arbitrary properties require the KHR_animation_pointer extension
 					bool sampledAnimationData = false;
@@ -917,7 +917,7 @@ namespace UnityGLTF
 							var prop = c.Value;
 							if (BakePropertyAnimation(prop, clip.length, AnimationBakingFramerate, speedMultiplier, out times, out var values))
 							{
-								AddAnimationData(prop.target, prop.propertyName, animation, times, values);
+								AddAnimationData(prop.target, prop.propertyName, animation, AnimationInterpolationType.LINEAR, times, values);
 								sampledAnimationData = true;
 							}
 						}
@@ -934,7 +934,7 @@ namespace UnityGLTF
 							trp2.curve.AddRange(curve.translationCurves);
 							if (BakePropertyAnimation(trp2, clip.length, AnimationBakingFramerate, speedMultiplier, out times, out var values2))
 							{
-								AddAnimationData(targetTr, trp2.propertyName, animation, times, values2);
+								AddAnimationData(targetTr, trp2.propertyName, animation, AnimationInterpolationType.LINEAR, times, values2);
 								sampledAnimationData = true;
 							}
 						}
@@ -945,7 +945,7 @@ namespace UnityGLTF
 							trp3.curve.AddRange(curve.rotationCurves.Where(x => x != null));
 							if (BakePropertyAnimation(trp3, clip.length, AnimationBakingFramerate, speedMultiplier, out times, out var values3))
 							{
-								AddAnimationData(targetTr, trp3.propertyName, animation, times, values3);
+								AddAnimationData(targetTr, trp3.propertyName, animation, AnimationInterpolationType.LINEAR,times, values3);
 								sampledAnimationData = true;
 							}
 
@@ -957,7 +957,7 @@ namespace UnityGLTF
 							trp4.curve.AddRange(curve.scaleCurves);
 							if (BakePropertyAnimation(trp4, clip.length, AnimationBakingFramerate, speedMultiplier, out times, out var values4))
 							{
-								AddAnimationData(targetTr, trp4.propertyName, animation, times, values4);
+								AddAnimationData(targetTr, trp4.propertyName, animation, AnimationInterpolationType.LINEAR,times, values4);
 								sampledAnimationData = true;
 							}
 						}
@@ -969,7 +969,7 @@ namespace UnityGLTF
 							if (BakePropertyAnimation(trp5, clip.length, AnimationBakingFramerate, speedMultiplier, out times, out var values5))
 							{
 								var targetComponent = targetTr.GetComponent<SkinnedMeshRenderer>();
-								AddAnimationData(targetComponent, trp5.propertyName, animation, times, values5);
+								AddAnimationData(targetComponent, trp5.propertyName, animation, AnimationInterpolationType.LINEAR,times, values5);
 								sampledAnimationData = true;
 							}
 						}
@@ -1317,7 +1317,7 @@ namespace UnityGLTF
 			return curve;
 		}
 
-		private bool BakePropertyAnimation(PropertyCurve prop, float length, float bakingFramerate, float speedMultiplier, out double[] times, out object[] values)
+		private bool BakePropertyAnimation(PropertyCurve prop, float length, float bakingFramerate, float speedMultiplier, out float[] times, out object[] values)
 		{
 			times = null;
 			values = null;
@@ -1328,7 +1328,7 @@ namespace UnityGLTF
 			var nbSamples = Mathf.Max(1, Mathf.CeilToInt(length * bakingFramerate));
 			var deltaTime = length / nbSamples;
 
-			var _times = new List<double>(nbSamples * 2);
+			var _times = new List<float>(nbSamples * 2);
 			var _values = new List<object>(nbSamples * 2);
 
 			var curveCount = prop.curve.Count;
@@ -1442,10 +1442,8 @@ namespace UnityGLTF
 				}
 			}
 
-			times = _times.ToArray();
-			values = _values.ToArray();
-
-			RemoveUnneededKeyframes(ref times, ref values);
+			var (filteredTimes, filteredValue) = AnimationFilteringUtils.RemoveUnneededKeyframes(_times, _values);
+			(times, values) = (filteredTimes.ToArray(), filteredValue.ToArray());
 
 			return true;
 		}
@@ -1528,89 +1526,6 @@ namespace UnityGLTF
 		{
 			scale = new Vector2(input.x, input.y);
 			offset = new Vector2(input.z, 1 - input.w - input.y);
-		}
-
-		private static bool ArrayRangeEquals(object[] array, int sectionLength, int lastExportedSectionStart, int prevSectionStart, int sectionStart, int nextSectionStart)
-		{
-			var equals = true;
-			for (int i = 0; i < sectionLength; i++)
-			{
-				equals &= (lastExportedSectionStart >= prevSectionStart || array[lastExportedSectionStart + i].Equals(array[sectionStart + i])) &&
-				          array[prevSectionStart + i].Equals(array[sectionStart + i]) &&
-				          array[sectionStart + i].Equals(array[nextSectionStart + i]);
-				if (!equals) return false;
-			}
-
-			return true;
-		}
-
-		internal static void RemoveUnneededKeyframes(ref double[] times, ref object[] values)
-		{
-			if (times.Length <= 1)
-				return;
-
-			removeAnimationUnneededKeyframesMarker.Begin();
-
-			var t2 = new List<double>(times.Length);
-			var v2 = new List<object>(values.Length);
-
-			var arraySize = values.Length / times.Length;
-
-			if (arraySize == 1)
-			{
-				t2.Add(times[0]);
-				v2.Add(values[0]);
-
-				int lastExportedIndex = 0;
-				for (int i = 1; i < times.Length - 1; i++)
-				{
-					removeAnimationUnneededKeyframesCheckIdenticalMarker.Begin();
-					var isIdentical = (lastExportedIndex >= i - 1 || values[lastExportedIndex].Equals(values[i])) && values[i - 1].Equals(values[i]) && values[i].Equals(values[i + 1]);
-					if (!isIdentical)
-					{
-						lastExportedIndex = i;
-						t2.Add(times[i]);
-						v2.Add(values[i]);
-					}
-					removeAnimationUnneededKeyframesCheckIdenticalMarker.End();
-				}
-
-				var max = times.Length - 1;
-				t2.Add(times[max]);
-				v2.Add(values[max]);
-			}
-			else
-			{
-				var singleFrameWeights = new object[arraySize];
-				Array.Copy(values, 0, singleFrameWeights, 0, arraySize);
-				t2.Add(times[0]);
-				v2.AddRange(singleFrameWeights);
-
-				int lastExportedIndex = 0;
-				for (int i = 1; i < times.Length - 1; i++)
-				{
-					removeAnimationUnneededKeyframesCheckIdenticalMarker.Begin();
-					var isIdentical = ArrayRangeEquals(values, arraySize, lastExportedIndex * arraySize, (i - 1) * arraySize, i * arraySize, (i + 1) * arraySize);
-					if (!isIdentical)
-					{
-						Array.Copy(values, (i - 1) * arraySize, singleFrameWeights, 0, arraySize);
-						v2.AddRange(singleFrameWeights);
-						t2.Add(times[i]);
-					}
-
-					removeAnimationUnneededKeyframesCheckIdenticalMarker.End();
-				}
-
-				var max = times.Length - 1;
-				t2.Add(times[max]);
-				var skipped = values.Skip((max - 1) * arraySize).ToArray();
-				v2.AddRange(skipped.Take(arraySize));
-			}
-
-			times = t2.ToArray();
-			values = v2.ToArray();
-
-			removeAnimationUnneededKeyframesMarker.End();
 		}
 	}
 }

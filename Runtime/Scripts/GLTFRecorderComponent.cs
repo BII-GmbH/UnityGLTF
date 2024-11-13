@@ -34,12 +34,7 @@ namespace UnityGLTF
 	    public UnityEvent recordingStarted;
 		public UnityEvent<string> recordingEnded;
 
-		private double CurrentTime =>
-#if UNITY_2020_1_OR_NEWER
-			Time.timeAsDouble;
-#else
-			Time.time;
-#endif
+		private float CurrentTime => Time.time;
 
 		[ContextMenu("Start Recording")]
 		public virtual void StartRecording()

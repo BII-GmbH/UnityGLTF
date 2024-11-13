@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace UnityGLTF.Timeline.Samplers
@@ -9,9 +10,13 @@ namespace UnityGLTF.Timeline.Samplers
         public TranslationSampler(Func<Transform, bool> sampleInWorldSpace) => this.sampleInWorldSpace = sampleInWorldSpace;
 
         public override string PropertyName => "translation";
-        protected override Transform getTarget(Transform transform) => transform;
 
-        protected override Vector3 getValue(Transform transform, Transform target, AnimationData data) =>
+        public override AnimationInterpolationType InterpolationType => AnimationInterpolationType.LINEAR;
+
+        public override IEqualityComparer<Vector3> DataComparer => EqualityComparer<Vector3>.Default;
+        internal override Transform getTarget(Transform transform) => transform;
+
+        public override Vector3 GetValue(Transform transform, Transform target, AnimationData data) =>
             sampleInWorldSpace(transform) ? transform.position : transform.localPosition;
     }
     
@@ -20,8 +25,12 @@ namespace UnityGLTF.Timeline.Samplers
         private readonly Func<Transform, bool> sampleInWorldSpace;
         public RotationSampler(Func<Transform, bool> sampleInWorldSpace) => this.sampleInWorldSpace = sampleInWorldSpace;
         public override string PropertyName => "rotation";
-        protected override Transform getTarget(Transform transform) => transform;
-        protected override Quaternion getValue(Transform transform, Transform target, AnimationData data) =>
+
+        public override AnimationInterpolationType InterpolationType => AnimationInterpolationType.LINEAR;
+
+        public override IEqualityComparer<Quaternion> DataComparer => EqualityComparer<Quaternion>.Default;
+        internal override Transform getTarget(Transform transform) => transform;
+        public override Quaternion GetValue(Transform transform, Transform target, AnimationData data) =>
             sampleInWorldSpace(transform) ? transform.rotation : transform.localRotation;
     }
     
@@ -31,8 +40,12 @@ namespace UnityGLTF.Timeline.Samplers
         public ScaleSampler(Func<Transform, bool> sampleInWorldSpace) => this.sampleInWorldSpace = sampleInWorldSpace;
         
         public override string PropertyName => "scale";
-        protected override Transform getTarget(Transform transform) => transform;
-        protected override Vector3 getValue(Transform transform, Transform target, AnimationData data) =>
+
+        public override AnimationInterpolationType InterpolationType => AnimationInterpolationType.LINEAR;
+
+        public override IEqualityComparer<Vector3> DataComparer => EqualityComparer<Vector3>.Default;
+        internal override Transform getTarget(Transform transform) => transform;
+        public override Vector3 GetValue(Transform transform, Transform target, AnimationData data) =>
             sampleInWorldSpace(transform) ? transform.lossyScale : transform.localScale;
     }
 }

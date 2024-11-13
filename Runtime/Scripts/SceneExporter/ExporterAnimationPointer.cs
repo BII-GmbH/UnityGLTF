@@ -3,11 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using GLTF.Schema;
 using GLTF.Schema.KHR_lights_punctual;
-using GLTF.Utilities;
 using UnityEngine;
 using UnityGLTF.Extensions;
 using UnityGLTF.JsonPointer;
 using UnityGLTF.Plugins;
+using AnimationSampler = GLTF.Schema.AnimationSampler;
 using Object = UnityEngine.Object;
 
 namespace UnityGLTF
@@ -44,7 +44,7 @@ namespace UnityGLTF
 		///		_exporter.GetRoot().Animations.Add(_animationA);
 		///	};
 		/// </code></example>
-		public void AddAnimationData(Object animatedObject, string propertyName, GLTFAnimation animation, double[] times, object[] values)
+		public void AddAnimationData(Object animatedObject, string propertyName, GLTFAnimation animation, AnimationInterpolationType interpolationType, float[] times, object[] values)
 		{
 			if (!animatedObject) return;
 			
@@ -259,10 +259,12 @@ namespace UnityGLTF
 			AnimationChannel Tchannel = new AnimationChannel();
 			AnimationChannelTarget TchannelTarget = new AnimationChannelTarget() { Path = propertyName, Node = Node };
 			Tchannel.Target = TchannelTarget;
+			
 
 			AnimationSampler Tsampler = new AnimationSampler();
 			Tsampler.Input = timeAccessor;
-
+			Tsampler.Interpolation = interpolationType.ToSchemaEnum();
+			
 			// for cases where one property needs to be split up into multiple tracks
 			// example: emissiveFactor * emissiveStrength
 			// TODO not needed when secondPropertyName==null
