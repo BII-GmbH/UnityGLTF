@@ -48,7 +48,7 @@ namespace UnityGLTF.Timeline
                 var scale = currentScale;
 
                 if (visTime.nearlyEqual(scaleTime)) {
-                    
+                    // safety check to ensure that a sample a time 0 is set correctly
                     if (visTime <= 0) {
                         yield return (visTime, visible ? (lastScale ?? scale) : Vector3.zero);
                     }
@@ -68,6 +68,7 @@ namespace UnityGLTF.Timeline
                     incrementScaleIndex();
                 }
                 else if (visTime < scaleTime) {
+                    // safety check to ensure that a sample a time 0 is set correctly
                     if(visTime <= 0) {
                         yield return (visTime, visible ? (lastScale ?? scale) : Vector3.zero);
                     }

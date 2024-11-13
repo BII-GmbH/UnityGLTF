@@ -7,8 +7,8 @@ using Unity.Profiling;
 namespace UnityGLTF
 {
 	// Contains some util functions to remove duplicate entries from the keyframe arrays
-    internal static class AnimationFilteringUtils
-    {
+	internal static class AnimationFilteringUtils
+	{
 	    private static readonly ProfilerMarker removeAnimationUnneededKeyframesMarker = new ProfilerMarker("Simplify Keyframes");
 	    private static readonly ProfilerMarker removeAnimationUnneededKeyframesFindDuplicatesMarker = new ProfilerMarker("Search&Find Duplicate Keyframes");
 	    private static readonly ProfilerMarker removeAnimationUnneededKeyframesCopyWithoutDuplicatesMarker = new ProfilerMarker("Copy Without Duplicates Keyframes");
@@ -40,7 +40,7 @@ namespace UnityGLTF
 			    // 1.1. If we did not find any, we avoid any further work and just return the input.
 			    // 2.   If we found such values, we create a new list and copy all values except
 			    //      the duplicates over, of course leaving out both the time and the value for duplicates
-			    
+
 			    removeAnimationUnneededKeyframesFindDuplicatesMarker.Begin();
 			    var foundDuplicates = new Queue<int>();
 			    var lastEquals = false;
@@ -48,12 +48,12 @@ namespace UnityGLTF
 			    // re-using the last result.
 			    for (var i = 0; i < values.Count - 1; i++) {
 				    var nextEquals = values[i].Equals(values[i + 1]);
-				    if (lastEquals && nextEquals) {
-					    foundDuplicates.Enqueue(i);
-				    }
+				    if (lastEquals && nextEquals) { foundDuplicates.Enqueue(i); }
+
 				    lastEquals = nextEquals;
 			    }
-				removeAnimationUnneededKeyframesFindDuplicatesMarker.End();
+			    removeAnimationUnneededKeyframesFindDuplicatesMarker.End();
+			    
 			    if (foundDuplicates.Count <= 0) return (times, values);
 			    removeAnimationUnneededKeyframesCopyWithoutDuplicatesMarker.Begin();
 			    var t2 = new List<float>(times.Count);
@@ -62,18 +62,19 @@ namespace UnityGLTF
 			    var nextDuplicate = foundDuplicates.Dequeue();
 			    for (var i = 0; i < values.Count; i++) {
 				    if (i == nextDuplicate) {
-					    // dequeue may fail due to there not being any more duplicates - we dont want
+					    // dequeue may fail due to there not being any more duplicates - we don't want
 					    // to do anything different in that case since we still need to copy over
 					    // the remaining values to the new lists.
 					    // But we need to handle the case that the deque fails - so use TryDequeue.
 					    // Dequeue into a separate variable & assign on success to make sure an
 					    // unexpected integer return value when deque failed cannot break the logic.
-					    if (foundDuplicates.TryDequeue(out var n)) nextDuplicate = n;
-					    continue;
+					    if (foundDuplicates.TryDequeue(out var n))
+						    nextDuplicate = n;
+				    } else {
+					    t2.Add(times[i]);
+					    v2.Add(values[i]);
 				    }
-				    t2.Add(times[i]);
-				    v2.Add(values[i]);
-				    
+
 			    }
 			    removeAnimationUnneededKeyframesCopyWithoutDuplicatesMarker.End();
 			    return (t2, v2);
@@ -119,6 +120,7 @@ namespace UnityGLTF
 		    }
 	    }
 
+	    /// only used by the weird branch of <see cref="RemoveUnneededKeyframes"/> & a workaround for having no IReadOnlyList.Copy method
 	    private static void copy(IReadOnlyList<object> values, int from, object[] to, int start, int length) {
 		    if(values.Count <= from + length)
 			    throw new IndexOutOfRangeException("The source collection is too small to copy the requested range.");
@@ -129,6 +131,7 @@ namespace UnityGLTF
 		    }
 	    }
 	    
+	    /// only used by the weird branch of <see cref="RemoveUnneededKeyframes"/>, no idea what this is supposed to do
 	    private static bool arrayRangeEquals(
 		    IReadOnlyList<object> array,
 		    int sectionLength,

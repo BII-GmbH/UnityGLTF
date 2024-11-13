@@ -111,8 +111,26 @@ namespace UnityGLTF
 		public ExportOptions(GLTFSettings settings): base(settings, Enumerable.Empty<Transform>()) { }
 	}
 
+	/// Implementations of this interface can be used to collect the animation data that has been sampled by <see cref="GLTFRecorder"/>
+	/// and process them further by for example writing them to the exported gltf file.
+	/// Usually you should not be implementing this yourself, but instead pass an instance of <see cref="GLTFSceneExporter"/> to it.
+	/// This interface exist mainly for decoupling these types & allowing to provide alternative
+	/// implementations for example in custom debugging utilities.
 	public interface AnimationDataCollector
 	{
+		/// <summary>
+		/// Add animation data to the exporter.
+		/// The animation data that should be passed to this method is already fully post-processed and has been filtered for duplicates already.
+		/// After it is passed to this method, there is no further processing done on it, depending on the concrete implementation
+		/// it can be assumed to be directly serialized for the export.
+		/// </summary>
+		/// <param name="animatedObject">The object the animation data applies to</param>
+		/// <param name="propertyName">The animated property</param>
+		/// <param name="animation">instance of the Animation. Can be shared between multiple animated objects,
+		/// but (animatedObject,propertyName) has to be unique in each animation.</param>
+		/// <param name="interpolationType">The interpolation type to use for this animation</param>
+		/// <param name="times">The timestamps of the animated data. Each timestamp corresponds to the data point at the same index</param>
+		/// <param name="values">The animated data. Each value corresponds to the timestamp at the same index</param>
 		void AddAnimationData(
 			Object animatedObject,
 			string propertyName,
