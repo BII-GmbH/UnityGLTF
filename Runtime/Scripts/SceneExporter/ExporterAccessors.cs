@@ -18,24 +18,6 @@ public partial class GLTFSceneExporter
 #endif
 
 	/// <summary>
-	/// Convenience function to copy from a stream to a binary writer, for
-	/// compatibility with pre-.NET 4.0.
-	/// Note: Does not set position/seek in either stream. After executing,
-	/// the input buffer's position should be the end of the stream.
-	/// </summary>
-	/// <param name="input">Stream to copy from</param>
-	/// <param name="output">Stream to copy to.</param>
-	private static void CopyStream(Stream input, BinaryWriter output)
-	{
-		byte[] buffer = new byte[8 * 1024];
-		int length;
-		while ((length = input.Read(buffer, 0, buffer.Length)) > 0)
-		{
-			output.Write(buffer, 0, length);
-		}
-	}
-
-	/// <summary>
 	/// Pads a stream with additional bytes.
 	/// </summary>
 	/// <param name="stream">The stream to be modified.</param>
