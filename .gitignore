@@ -221,3 +221,6 @@ sysinfo.txt
 
 .idea
 UnityGLTF/Logs/
+UnityGLTF/Logs.meta
+UnityGLTF/obj.meta
+UnityGLTF/UnityGLTF.sln.meta
