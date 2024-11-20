@@ -734,18 +734,11 @@ namespace UnityGLTF
 			}
 		}
 
-		/// <summary>
-		/// Writes a binary GLB file into a stream (memory stream, filestream, ...)
-		/// </summary>
-		/// <param name="path">File path for saving the binary file</param>
-		/// <param name="fileName">The name of the GLTF file</param>
-		public void SaveGLBToStream(Stream stream, string sceneName)
-		{
-			exportGltfMarker.Begin();
-
+		private (MemoryStream BinStream, MemoryStream JsonStream) serializeToStreams(string sceneName) {
+			
 			exportGltfInitMarker.Begin();
-			Stream binStream = new MemoryStream();
-			Stream jsonStream = new MemoryStream();
+			var binStream = new MemoryStream();
+			var jsonStream = new MemoryStream();
 			_shouldUseInternalBufferForImages = true;
 
 			_bufferWriter = new BinaryWriterWithLessAllocations(binStream);
@@ -778,25 +771,44 @@ namespace UnityGLTF
 			afterSceneExportMarker.End();
 
 			animationPointerResolver?.Resolve(this);
-
+			
 			_buffer.ByteLength = CalculateAlignment((uint)_bufferWriter.BaseStream.Length, 4);
 
 			gltfSerializationMarker.Begin();
 			_root.Serialize(jsonWriter, true);
 			gltfSerializationMarker.End();
-
-			gltfWriteOutMarker.Begin();
+			
 			_bufferWriter.Flush();
 			jsonWriter.Flush();
 
+			return (binStream, jsonStream);
+		}
+
+		public async Task SaveGLBToStreamOnThread(Stream stream, string sceneName) {
+			var (binStream, jsonStream) = serializeToStreams(sceneName);
+			await Task.Run(() => writeGLBToStream(stream, binStream, jsonStream));
+		}
+
+		public void SaveGLBToStream(Stream stream, string sceneName) {
+			var (binStream, jsonStream) = serializeToStreams(sceneName);
+			writeGLBToStream(stream, binStream, jsonStream);
+		}
+		
+		/// Writes a binary GLB file into a stream (memory stream, filestream, ...)
+		private static void writeGLBToStream(Stream outStream, MemoryStream binInStream, MemoryStream jsonInStream)
+		{
+			
+			gltfWriteOutMarker.Begin();
+			
+
 			// align to 4-byte boundary to comply with spec.
-			AlignToBoundary(jsonStream);
-			AlignToBoundary(binStream, 0x00);
+			AlignToBoundary(jsonInStream);
+			AlignToBoundary(binInStream, 0x00);
 
 			int glbLength = (int)(GLTFHeaderSize + SectionHeaderSize +
-				jsonStream.Length + SectionHeaderSize + binStream.Length);
+				jsonInStream.Length + SectionHeaderSize + binInStream.Length);
 
-			BinaryWriter writer = new BinaryWriter(stream);
+			var writer = new BinaryWriter(outStream);
 
 			// write header
 			writer.Write(MagicGLTF);
@@ -805,27 +817,34 @@ namespace UnityGLTF
 
 			gltfWriteJsonStreamMarker.Begin();
 			// write JSON chunk header.
-			writer.Write((int)jsonStream.Length);
+			writer.Write((int)jsonInStream.Length);
 			writer.Write(MagicJson);
 
-			jsonStream.Position = 0;
-			CopyStream(jsonStream, writer);
+			jsonInStream.Position = 0; 
+			
+			// .BaseStream flushes the writer so this is safe to do
+			// Note: CopyTo is only available in .NET 4.0 and later - 
+			// which is supported all the way back to at least Unity 2018 
+			// (I could not find c# compatibility information for older
+			// versions as the doc page did not exist back then)
+			jsonInStream.CopyTo(writer.BaseStream);
+			
 			gltfWriteJsonStreamMarker.End();
 
 			gltfWriteBinaryStreamMarker.Begin();
-			writer.Write((int)binStream.Length);
+			writer.Write((int)binInStream.Length);
 			writer.Write(MagicBin);
 
-			binStream.Position = 0;
-			CopyStream(binStream, writer);
+			binInStream.Position = 0;
+			binInStream.CopyTo(writer.BaseStream);
+			
 			gltfWriteBinaryStreamMarker.End();
 
 			writer.Flush();
 
 			gltfWriteOutMarker.End();
-			exportGltfMarker.End();
 		}
-
+		
 		/// <summary>
 		/// Specifies the path and filename for the GLTF Json and binary
 		/// </summary>
