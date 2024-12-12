@@ -260,8 +260,6 @@ namespace UnityGLTF
 			var textureProperty = tryFindTexturePropertyName();
 
 			if (textureProperty != null) {
-				var textureTintProperty = tryFindTextureTintPropertyName();
-
 				if (material.PbrMetallicRoughness == null) {
 					material.PbrMetallicRoughness = new PbrMetallicRoughness() { MetallicFactor = 0, RoughnessFactor = 1.0f };
 				}
@@ -271,6 +269,7 @@ namespace UnityGLTF
 					TextureMapType.BaseColor
 				);
 				
+				var textureTintProperty = tryFindTextureTintPropertyName();
 				if (textureTintProperty != null) {
 					material.PbrMetallicRoughness.BaseColorFactor = textureTintProperty!.Value.Tint.ToNumericsColorLinear();
 				}
