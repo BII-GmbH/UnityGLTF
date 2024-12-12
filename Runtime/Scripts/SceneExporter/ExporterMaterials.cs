@@ -257,10 +257,10 @@ namespace UnityGLTF
 				material.CommonConstant = ExportCommonConstant(materialObj);
 			}
 
-			var textureProperty = findTexturePropertyName();
+			var textureProperty = tryFindTexturePropertyName();
 
 			if (textureProperty != null) {
-				var textureTintProperty = findTextureTintPropertyName();
+				var textureTintProperty = tryFindTextureTintPropertyName();
 
 				if (material.PbrMetallicRoughness == null) {
 					material.PbrMetallicRoughness = new PbrMetallicRoughness() { MetallicFactor = 0, RoughnessFactor = 1.0f };
@@ -313,10 +313,10 @@ namespace UnityGLTF
 			return CreateAndAddMaterialId(materialObj, material);
 
 			#nullable enable
-			(string TextureProperty, Texture Texture)? findTexturePropertyName() {
-				string[] potentialTextureProperties = { "_BaseMap", "_ColorTexture", "_BaseColorMap", "_MainTex" };
+			(string TextureProperty, Texture Texture)? tryFindTexturePropertyName() {
+				string[] potentialTexturePropertyNames = { "_BaseMap", "_ColorTexture", "_BaseColorMap", "_MainTex" };
 
-				foreach (var texName in potentialTextureProperties)
+				foreach (var texName in potentialTexturePropertyNames)
 				{
 					if (materialObj.HasProperty(texName)) {
 						var tex = materialObj.GetTexture(texName);
@@ -328,10 +328,10 @@ namespace UnityGLTF
 				return null;
 			}
 			
-			(string TintName, Color Tint)? findTextureTintPropertyName() {
-				string[] potentialTextureTintProperties = { /* used for particles */ "_TintColor", "_BaseColor", "_Color" };
+			(string TintName, Color Tint)? tryFindTextureTintPropertyName() {
+				string[] potentialTextureTintPropertyNames = { /* used for particles */ "_TintColor", "_BaseColor", "_Color" };
 
-				foreach (var tintProperty in potentialTextureTintProperties)
+				foreach (var tintProperty in potentialTextureTintPropertyNames)
 				{
 					if (materialObj.HasProperty(tintProperty)) {
 						var tint = materialObj.GetColor(tintProperty);
