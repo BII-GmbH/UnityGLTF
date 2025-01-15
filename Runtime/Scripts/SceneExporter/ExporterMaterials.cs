@@ -260,21 +260,23 @@ namespace UnityGLTF
 			var textureProperty = tryFindTexturePropertyName();
 
 			if (textureProperty != null) {
-				if (material.PbrMetallicRoughness == null) {
-					material.PbrMetallicRoughness = new PbrMetallicRoughness() { MetallicFactor = 0, RoughnessFactor = 1.0f };
-				}
+				material.PbrMetallicRoughness ??= new PbrMetallicRoughness() { MetallicFactor = 0, RoughnessFactor = 1.0f };
 
 				material.PbrMetallicRoughness.BaseColorTexture = ExportTextureInfo(
 					textureProperty.Value.Texture,
 					TextureMapType.BaseColor
 				);
-				
-				var textureTintProperty = tryFindTextureTintPropertyName();
-				if (textureTintProperty != null) {
-					material.PbrMetallicRoughness.BaseColorFactor = textureTintProperty!.Value.Tint.ToNumericsColorLinear();
-				}
 				ExportTextureTransform(material.PbrMetallicRoughness.BaseColorTexture, materialObj, textureProperty.Value.TextureProperty);
 			}
+			// This is not inside the if textured block because when no valid texture property is found -
+			// the object is not textured, but may still be colored so we need to export these in both cases
+			var textureTintProperty = tryFindTextureTintPropertyName();
+			if (textureTintProperty != null) {
+				material.PbrMetallicRoughness ??= new PbrMetallicRoughness() { MetallicFactor = 0, RoughnessFactor = 1.0f };
+
+				material.PbrMetallicRoughness.BaseColorFactor = textureTintProperty!.Value.Tint.ToNumericsColorLinear();
+			}
+			
 			
 			if (materialObj.HasProperty("_OcclusionMap") || materialObj.HasProperty("occlusionTexture") || materialObj.HasProperty("_OcclusionTexture"))
 			{
