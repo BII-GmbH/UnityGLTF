@@ -12,11 +12,15 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using GLTF.Schema;
 using Unity.Profiling;
 using UnityEngine;
+using UnityEngine.Profiling;
 using UnityGLTF.Extensions;
 using UnityGLTF.Plugins;
+using Object = UnityEngine.Object;
+using Sampler = GLTF.Schema.Sampler;
 
 namespace UnityGLTF
 {
@@ -25,17 +29,20 @@ namespace UnityGLTF
 		public bool TreatEmptyRootAsScene = false;
 		public bool MergeClipsWithMatchingNames = false;
 		public LayerMask ExportLayers = -1;
+		
+		internal readonly IReadOnlyCollection<Transform> ignoredTransforms;
 		public ILogger logger;
 		internal readonly GLTFSettings settings;
 
-		public ExportContext() : this(GLTFSettings.GetOrCreateSettings()) { }
+		public ExportContext() : this(GLTFSettings.GetOrCreateSettings(), Enumerable.Empty<Transform>()) { }
 
-		public ExportContext(GLTFSettings settings)
+		public ExportContext(GLTFSettings settings, IEnumerable<Transform> ignoredTransforms = null)
 		{
 			if (!settings) settings = GLTFSettings.GetOrCreateSettings();
 			if (settings.UseMainCameraVisibility)
 				ExportLayers = Camera.main ? Camera.main.cullingMask : -1;
 			this.settings = settings;
+			this.ignoredTransforms = ignoredTransforms?.ToHashSet() ?? new HashSet<Transform>();
 		}
 
 		public GLTFSceneExporter.RetrieveTexturePathDelegate TexturePathRetriever = (texture) => texture.name;
@@ -101,10 +108,40 @@ namespace UnityGLTF
 	public class ExportOptions: ExportContext
 	{
 		public ExportOptions(): base() { }
-		public ExportOptions(GLTFSettings settings): base(settings) { }
+		public ExportOptions(GLTFSettings settings): base(settings, Enumerable.Empty<Transform>()) { }
 	}
 
-	public partial class GLTFSceneExporter
+	/// Implementations of this interface can be used to collect the animation data that has been sampled by <see cref="GLTFRecorder"/>
+	/// and process them further by for example writing them to the exported gltf file.
+	/// Usually you should not be implementing this yourself, but instead pass an instance of <see cref="GLTFSceneExporter"/> to it.
+	/// This interface exist mainly for decoupling these types & allowing to provide alternative
+	/// implementations for example in custom debugging utilities.
+	public interface AnimationDataCollector
+	{
+		/// <summary>
+		/// Add animation data to the exporter.
+		/// The animation data that should be passed to this method is already fully post-processed and has been filtered for duplicates already.
+		/// After it is passed to this method, there is no further processing done on it, depending on the concrete implementation
+		/// it can be assumed to be directly serialized for the export.
+		/// </summary>
+		/// <param name="animatedObject">The object the animation data applies to</param>
+		/// <param name="propertyName">The animated property</param>
+		/// <param name="animation">instance of the Animation. Can be shared between multiple animated objects,
+		/// but (animatedObject,propertyName) has to be unique in each animation.</param>
+		/// <param name="interpolationType">The interpolation type to use for this animation</param>
+		/// <param name="times">The timestamps of the animated data. Each timestamp corresponds to the data point at the same index</param>
+		/// <param name="values">The animated data. Each value corresponds to the timestamp at the same index</param>
+		void AddAnimationData(
+			Object animatedObject,
+			string propertyName,
+			GLTFAnimation animation,
+			AnimationInterpolationType interpolationType,
+			float[] times,
+			object[] values
+		);
+	}
+	
+	public partial class GLTFSceneExporter : AnimationDataCollector, IAsyncDisposable
 	{
 		// Available export callbacks.
 		// Callbacks can be either set statically (for exporters that register themselves)
@@ -511,6 +548,7 @@ namespace UnityGLTF
 		private static ProfilerMarker gltfSerializationMarker = new ProfilerMarker("Serialize exported data");
 		private static ProfilerMarker exportMeshMarker = new ProfilerMarker("Export Mesh");
 		private static ProfilerMarker exportPrimitiveMarker = new ProfilerMarker("Export Primitive");
+		private static ProfilerMarker collectPrimitivesMarker = new ProfilerMarker("Collect Primitives");
 		private static ProfilerMarker exportBlendShapeMarker = new ProfilerMarker("Export BlendShape");
 		private static ProfilerMarker exportSkinFromNodeMarker = new ProfilerMarker("Export Skin");
 		private static ProfilerMarker exportSparseAccessorMarker = new ProfilerMarker("Export Sparse Accessor");
@@ -552,11 +590,6 @@ namespace UnityGLTF
 		private static ProfilerMarker exportPositionAnimationDataMarker = new ProfilerMarker("Position Keyframes");
 		private static ProfilerMarker exportScaleAnimationDataMarker = new ProfilerMarker("Scale Keyframes");
 		private static ProfilerMarker exportWeightsAnimationDataMarker = new ProfilerMarker("Weights Keyframes");
-		private static ProfilerMarker removeAnimationUnneededKeyframesMarker = new ProfilerMarker("Simplify Keyframes");
-		private static ProfilerMarker removeAnimationUnneededKeyframesInitMarker = new ProfilerMarker("Init");
-		private static ProfilerMarker removeAnimationUnneededKeyframesCheckIdenticalMarker = new ProfilerMarker("Check Identical");
-		private static ProfilerMarker removeAnimationUnneededKeyframesCheckIdenticalKeepMarker = new ProfilerMarker("Keep Keyframe");
-		private static ProfilerMarker removeAnimationUnneededKeyframesFinalizeMarker = new ProfilerMarker("Finalize");
 		// ReSharper restore InconsistentNaming
 #endregion
 
@@ -716,18 +749,11 @@ namespace UnityGLTF
 			}
 		}
 
-		/// <summary>
-		/// Writes a binary GLB file into a stream (memory stream, filestream, ...)
-		/// </summary>
-		/// <param name="path">File path for saving the binary file</param>
-		/// <param name="fileName">The name of the GLTF file</param>
-		public void SaveGLBToStream(Stream stream, string sceneName)
-		{
-			exportGltfMarker.Begin();
-
+		private (MemoryStream BinStream, MemoryStream JsonStream) serializeToStreams(string sceneName) {
+			
 			exportGltfInitMarker.Begin();
-			Stream binStream = new MemoryStream();
-			Stream jsonStream = new MemoryStream();
+			var binStream = new MemoryStream();
+			var jsonStream = new MemoryStream();
 			_shouldUseInternalBufferForImages = true;
 
 			_bufferWriter = new BinaryWriterWithLessAllocations(binStream);
@@ -760,25 +786,44 @@ namespace UnityGLTF
 			afterSceneExportMarker.End();
 
 			animationPointerResolver?.Resolve(this);
-
+			
 			_buffer.ByteLength = CalculateAlignment((uint)_bufferWriter.BaseStream.Length, 4);
 
 			gltfSerializationMarker.Begin();
 			_root.Serialize(jsonWriter, true);
 			gltfSerializationMarker.End();
-
-			gltfWriteOutMarker.Begin();
+			
 			_bufferWriter.Flush();
 			jsonWriter.Flush();
 
+			return (binStream, jsonStream);
+		}
+
+		public async Task SaveGLBToStreamOnThread(Stream stream, string sceneName) {
+			var (binStream, jsonStream) = serializeToStreams(sceneName);
+			await Task.Run(() => writeGLBToStream(stream, binStream, jsonStream));
+		}
+
+		public void SaveGLBToStream(Stream stream, string sceneName) {
+			var (binStream, jsonStream) = serializeToStreams(sceneName);
+			writeGLBToStream(stream, binStream, jsonStream);
+		}
+		
+		/// Writes a binary GLB file into a stream (memory stream, filestream, ...)
+		private static void writeGLBToStream(Stream outStream, MemoryStream binInStream, MemoryStream jsonInStream)
+		{
+			
+			gltfWriteOutMarker.Begin();
+			
+
 			// align to 4-byte boundary to comply with spec.
-			AlignToBoundary(jsonStream);
-			AlignToBoundary(binStream, 0x00);
+			AlignToBoundary(jsonInStream);
+			AlignToBoundary(binInStream, 0x00);
 
 			int glbLength = (int)(GLTFHeaderSize + SectionHeaderSize +
-				jsonStream.Length + SectionHeaderSize + binStream.Length);
+				jsonInStream.Length + SectionHeaderSize + binInStream.Length);
 
-			BinaryWriter writer = new BinaryWriter(stream);
+			var writer = new BinaryWriter(outStream);
 
 			// write header
 			writer.Write(MagicGLTF);
@@ -787,27 +832,34 @@ namespace UnityGLTF
 
 			gltfWriteJsonStreamMarker.Begin();
 			// write JSON chunk header.
-			writer.Write((int)jsonStream.Length);
+			writer.Write((int)jsonInStream.Length);
 			writer.Write(MagicJson);
 
-			jsonStream.Position = 0;
-			CopyStream(jsonStream, writer);
+			jsonInStream.Position = 0; 
+			
+			// .BaseStream flushes the writer so this is safe to do
+			// Note: CopyTo is only available in .NET 4.0 and later - 
+			// which is supported all the way back to at least Unity 2018 
+			// (I could not find c# compatibility information for older
+			// versions as the doc page did not exist back then)
+			jsonInStream.CopyTo(writer.BaseStream);
+			
 			gltfWriteJsonStreamMarker.End();
 
 			gltfWriteBinaryStreamMarker.Begin();
-			writer.Write((int)binStream.Length);
+			writer.Write((int)binInStream.Length);
 			writer.Write(MagicBin);
 
-			binStream.Position = 0;
-			CopyStream(binStream, writer);
+			binInStream.Position = 0;
+			binInStream.CopyTo(writer.BaseStream);
+			
 			gltfWriteBinaryStreamMarker.End();
 
 			writer.Flush();
 
 			gltfWriteOutMarker.End();
-			exportGltfMarker.End();
 		}
-
+		
 		/// <summary>
 		/// Specifies the path and filename for the GLTF Json and binary
 		/// </summary>
@@ -974,9 +1026,11 @@ namespace UnityGLTF
 			}
 		}
 
-		private bool ShouldExportTransform(Transform transform)
+		private bool shouldExportTransform(Transform transform)
 		{
-			// Root transforms should *always* be exported since this is a deliberate decision by the user calling - it should override any other setting that would prevent the export (e.g. if a user calls Export with disabled or hidden objects the exporter should never prevent this)
+			// Root transforms should *always* be exported since this is a deliberate decision by the user calling -
+			// it should override any other setting that would prevent the export (e.g. if a user calls Export with
+			// disabled or hidden objects the exporter should never prevent this)
 			var isRoot = _rootTransforms.Contains(transform);
 			if (isRoot) return true;
 			
@@ -987,7 +1041,7 @@ namespace UnityGLTF
 			
 			if (settings.UseMainCameraVisibility && (_exportLayerMask >= 0 && _exportLayerMask != (_exportLayerMask | 1 << transform.gameObject.layer))) return false;
 			if (transform.CompareTag("EditorOnly")) return false;
-			return true;
+			return !_exportContext.ignoredTransforms.Contains(transform);
 		}
 
 		private SceneId ExportScene(string name, Transform[] rootObjTransforms)
@@ -1038,6 +1092,14 @@ namespace UnityGLTF
 			};
 		}
 
+		private string makeUniqueNodeName(Transform nodeTransform) 
+		{
+			if (_root.Nodes.Exists(n => n.Name == nodeTransform.name))
+				return nodeTransform.name + _root.Nodes.Count;
+			else
+				return nodeTransform.name;
+		}
+		
 		private NodeId ExportNode(Transform nodeTransform)
 		{
 			if (_exportedTransforms.TryGetValue(nodeTransform.GetInstanceID(), out var existingNodeId))
@@ -1058,7 +1120,7 @@ namespace UnityGLTF
 			
 			if (ExportNames)
 			{
-				node.Name = nodeTransform.name;
+				node.Name = makeUniqueNodeName(nodeTransform);
 			}
 			
 			// TODO think more about how this callback is used – could e.g. be modifying the hierarchy,
@@ -1070,31 +1132,40 @@ namespace UnityGLTF
 				plugin?.BeforeNodeExport(this, _root, nodeTransform, node);
 			beforeNodeExportMarker.End();
 
-#if ANIMATION_SUPPORTED
+			Profiler.BeginSample("Animation Export");
+			#if ANIMATION_SUPPORTED
 			if (nodeTransform.GetComponent<Animation>() || nodeTransform.GetComponent<Animator>())
 			{
 				_animatedNodes.Add(nodeTransform);
 			}
-#endif
+			#endif
+			Profiler.EndSample();
+			Profiler.BeginSample("Skinned Mesh Export");
 			if (nodeTransform.GetComponent<SkinnedMeshRenderer>() && ContainsValidRenderer(nodeTransform.gameObject, settings.ExportDisabledGameObjects))
 			{
 				_skinnedNodes.Add(nodeTransform);
 			}
+			Profiler.EndSample();
 
+			Profiler.BeginSample("Export Camera");
 			// export camera attached to node
 			Camera unityCamera = nodeTransform.GetComponent<Camera>();
 			if (unityCamera != null && unityCamera.enabled)
 			{
 				node.Camera = ExportCamera(unityCamera);
 			}
-
+			Profiler.EndSample();
+			
+			Profiler.BeginSample("Light Punctual Export");
 			var lightPluginEnabled = _plugins.FirstOrDefault(x => x is LightsPunctualExportContext) != null;
 			Light unityLight = nodeTransform.GetComponent<Light>();
 			if (unityLight != null && unityLight.enabled && lightPluginEnabled)
 			{
 				node.Light = ExportLight(unityLight);
 			}
-
+			Profiler.EndSample();
+			
+			Profiler.BeginSample("Export Transform");
 			var needsInvertedLookDirection = unityLight || unityCamera;
             if (needsInvertedLookDirection)
             {
@@ -1104,7 +1175,8 @@ namespace UnityGLTF
             {
                 node.SetUnityTransform(nodeTransform, false);
             }
-
+			Profiler.EndSample();
+			
             var id = new NodeId
 			{
 				Id = _root.Nodes.Count,
@@ -1116,16 +1188,20 @@ namespace UnityGLTF
 
 			_root.Nodes.Add(node);
 
+			Profiler.BeginSample("Filter Primitives");
 			// children that are primitives get put in a mesh
 			FilterPrimitives(nodeTransform, out GameObject[] primitives, out GameObject[] nonPrimitives);
+			Profiler.EndSample();
 			if (primitives.Length > 0)
 			{
 				var uniquePrimitives = GetUniquePrimitivesFromGameObjects(primitives);
 				if (uniquePrimitives != null)
 				{
 					node.Mesh = ExportMesh(nodeTransform.name, uniquePrimitives);
+					Profiler.BeginSample("Register Primitives With Node");
 					RegisterPrimitivesWithNode(node, uniquePrimitives);
-
+					Profiler.EndSample();
+					
 					// Node - BlendShape Weights 
 					if (uniquePrimitives[0].SkinnedMeshRenderer)
 					{
@@ -1135,6 +1211,7 @@ namespace UnityGLTF
 						// Because the weights already exported into the GltfMesh
 						if (smr && meshObj && _meshToBlendShapeAccessors.TryGetValue(meshObj, out var data) && smr != data.firstSkinnedMeshRenderer)
 						{
+							Profiler.BeginSample("Export Skinned Mesh Weights");
 							var blendShapeWeights = GetBlendShapeWeights(smr, meshObj);
 							if (blendShapeWeights != null)
 							{
@@ -1149,6 +1226,7 @@ namespace UnityGLTF
 										node.Weights = blendShapeWeights;
 								}
 							}
+							Profiler.EndSample();
 						}
 					}
 				}
@@ -1191,7 +1269,7 @@ namespace UnityGLTF
 				parentOfChilds.Children = new List<NodeId>(nonPrimitives.Length);
 				foreach (var child in nonPrimitives)
 				{
-					if (!ShouldExportTransform(child.transform)) continue;
+					if (!shouldExportTransform(child.transform)) continue;
 					var childNode = ExportNode(child.transform);
 					if (childNode != null) parentOfChilds.Children.Add(childNode);
 				}
@@ -1227,7 +1305,7 @@ namespace UnityGLTF
 			var nonPrims = new List<GameObject>(childCount);
 
 			// add another primitive if the root object also has a mesh
-			if (ShouldExportTransform(transform))
+			if (shouldExportTransform(transform))
 			{
 				if (ContainsValidRenderer(transform.gameObject, settings.ExportDisabledGameObjects))
 				{
@@ -1435,5 +1513,9 @@ namespace UnityGLTF
 		public Texture GetTexture(int id) => _textures[id].Texture;
 
 		#endregion
+		
+		public async ValueTask DisposeAsync() {
+			if (_bufferWriter != null) await _bufferWriter.DisposeAsync();
+		}
 	}
 }

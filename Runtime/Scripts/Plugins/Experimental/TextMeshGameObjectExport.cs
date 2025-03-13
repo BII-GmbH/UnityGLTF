@@ -90,6 +90,7 @@ namespace UnityGLTF.Plugins
 				// export material
 				// alternative: double sided, alpha clipping, white RGB + TMPro mainTex R channel as alpha
 				materialNode.DoubleSided = false;
+				materialNode.OriginalUnityShaderName = material.shader.name;
 				materialNode.PbrMetallicRoughness.BaseColorFactor = Color.white.ToNumericsColorLinear();
 				materialNode.AlphaMode = AlphaMode.BLEND;
 

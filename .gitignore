@@ -220,3 +220,7 @@ sysinfo.txt
 /www/node_modules/
 
 .idea
+UnityGLTF/Logs/
+UnityGLTF/Logs.meta
+UnityGLTF/obj.meta
+UnityGLTF/UnityGLTF.sln.meta

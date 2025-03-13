@@ -145,6 +145,8 @@ namespace UnityGLTF
 			                       (materialObj.HasProperty("_CullMode") && materialObj.GetInt("_CullMode") == (int)CullMode.Off) ||
 			                       (materialObj.shader.name.EndsWith("-Double")); // workaround for exporting shaders that are set to double-sided on 2020.3
 
+			material.OriginalUnityShaderName = materialObj.shader.name;
+
 			if (materialObj.IsKeywordEnabled("_EMISSION") || materialObj.IsKeywordEnabled("EMISSION") || materialObj.HasProperty("emissiveTexture") || materialObj.HasProperty("_EmissiveTexture"))
 			{
 				// In Gamma space, some materials treat their emissive color inputs differently than in Linear space.
@@ -254,57 +256,28 @@ namespace UnityGLTF
 			{
 				material.CommonConstant = ExportCommonConstant(materialObj);
 			}
-			else if (materialObj.HasProperty("_BaseMap"))
-			{
-				var mainTex = materialObj.GetTexture("_BaseMap");
-				material.PbrMetallicRoughness = new PbrMetallicRoughness()
-				{
-					BaseColorFactor = (materialObj.HasProperty("_BaseColor")
-						? materialObj.GetColor("_BaseColor")
-						: Color.white).ToNumericsColorLinear(),
-					BaseColorTexture = mainTex ? ExportTextureInfo(mainTex, TextureMapType.BaseColor) : null
-				};
-				ExportTextureTransform(material.PbrMetallicRoughness.BaseColorTexture, materialObj, "_BaseMap");
+
+			var textureProperty = tryFindTexturePropertyName();
+
+			if (textureProperty != null) {
+				material.PbrMetallicRoughness ??= new PbrMetallicRoughness() { MetallicFactor = 0, RoughnessFactor = 1.0f };
+
+				material.PbrMetallicRoughness.BaseColorTexture = ExportTextureInfo(
+					textureProperty.Value.Texture,
+					TextureMapType.BaseColor
+				);
+				ExportTextureTransform(material.PbrMetallicRoughness.BaseColorTexture, materialObj, textureProperty.Value.TextureProperty);
 			}
-			else if (materialObj.HasProperty("_ColorTexture"))
-			{
-				var mainTex = materialObj.GetTexture("_ColorTexture");
-				material.PbrMetallicRoughness = new PbrMetallicRoughness()
-				{
-					BaseColorFactor = (materialObj.HasProperty("_BaseColor")
-						? materialObj.GetColor("_BaseColor")
-						: Color.white).ToNumericsColorLinear(),
-					BaseColorTexture = mainTex ? ExportTextureInfo(mainTex, TextureMapType.BaseColor) : null
-				};
-				ExportTextureTransform(material.PbrMetallicRoughness.BaseColorTexture, materialObj, "_ColorTexture");
+			// This is not inside the if textured block because when no valid texture property is found -
+			// the object is not textured, but may still be colored so we need to export these in both cases
+			var textureTintProperty = tryFindTextureTintPropertyName();
+			if (textureTintProperty != null) {
+				material.PbrMetallicRoughness ??= new PbrMetallicRoughness() { MetallicFactor = 0, RoughnessFactor = 1.0f };
+
+				material.PbrMetallicRoughness.BaseColorFactor = textureTintProperty!.Value.Tint.ToNumericsColorLinear();
 			}
-            else if (materialObj.HasProperty("_MainTex")) //else export main texture
-            {
-                var mainTex = materialObj.GetTexture("_MainTex");
-
-                if (mainTex != null)
-                {
-                    material.PbrMetallicRoughness = new PbrMetallicRoughness() { MetallicFactor = 0, RoughnessFactor = 1.0f };
-                    material.PbrMetallicRoughness.BaseColorTexture = ExportTextureInfo(mainTex, TextureMapType.BaseColor);
-                    ExportTextureTransform(material.PbrMetallicRoughness.BaseColorTexture, materialObj, "_MainTex");
-                }
-                if (materialObj.HasProperty("_TintColor")) //particles use _TintColor instead of _Color
-                {
-                    if (material.PbrMetallicRoughness == null)
-                        material.PbrMetallicRoughness = new PbrMetallicRoughness() { MetallicFactor = 0, RoughnessFactor = 1.0f };
-
-                    material.PbrMetallicRoughness.BaseColorFactor = materialObj.GetColor("_TintColor").ToNumericsColorLinear();
-                }
-                else if (materialObj.HasProperty("_Color"))
-                {
-	                if (material.PbrMetallicRoughness == null)
-		                material.PbrMetallicRoughness = new PbrMetallicRoughness() { MetallicFactor = 0, RoughnessFactor = 1.0f };
-
-	                material.PbrMetallicRoughness.BaseColorFactor = materialObj.GetColor("_Color").ToNumericsColorLinear();
-                }
-                material.DoubleSided = true;
-            }
-
+			
+			
 			if (materialObj.HasProperty("_OcclusionMap") || materialObj.HasProperty("occlusionTexture") || materialObj.HasProperty("_OcclusionTexture"))
 			{
 				var propName = materialObj.HasProperty("occlusionTexture") ? "occlusionTexture" : materialObj.HasProperty("_OcclusionTexture") ? "_OcclusionTexture" : "_OcclusionMap";
@@ -339,6 +312,36 @@ namespace UnityGLTF
 			exportMaterialMarker.End();
 
 			return CreateAndAddMaterialId(materialObj, material);
+
+			#nullable enable
+			(string TextureProperty, Texture Texture)? tryFindTexturePropertyName() {
+				string[] potentialTexturePropertyNames = { "_BaseMap", "_ColorTexture", "_BaseColorMap", "_MainTex" };
+
+				foreach (var texName in potentialTexturePropertyNames)
+				{
+					if (materialObj.HasProperty(texName)) {
+						var tex = materialObj.GetTexture(texName);
+						// unity may be trolling and return null for a property that
+						// according to HasProperty exists, so check that it actually exists
+						if (tex) return (texName, tex);
+					}
+				}
+				return null;
+			}
+			
+			(string TintName, Color Tint)? tryFindTextureTintPropertyName() {
+				string[] potentialTextureTintPropertyNames = { /* used for particles */ "_TintColor", "_BaseColor", "_Color" };
+
+				foreach (var tintProperty in potentialTextureTintPropertyNames)
+				{
+					if (materialObj.HasProperty(tintProperty)) {
+						var tint = materialObj.GetColor(tintProperty);
+						return (tintProperty, tint);
+					}
+				}
+				return null;
+			}
+			#nullable disable
 		}
 
         private MaterialId CreateAndAddMaterialId(Material materialObj, GLTFMaterial material)
@@ -657,10 +660,14 @@ namespace UnityGLTF
                 pbr.BaseColorFactor = (material.GetColor("_TintColor") * white).ToNumericsColorLinear() ;
             }
 
-            if (material.HasProperty("_MainTex") || material.HasProperty("_BaseMap") || material.HasProperty("_BaseColorTexture") || material.HasProperty("baseColorTexture")) //TODO if additive particle, render black into alpha
+            if (material.HasProperty("_MainTex") || material.HasProperty("_BaseMap") || material.HasProperty("_BaseColorMap") || material.HasProperty("_BaseColorTexture") || material.HasProperty("baseColorTexture")) //TODO if additive particle, render black into alpha
 			{
 				// TODO use private Material.GetFirstPropertyNameIdByAttribute here, supported from 2020.1+
-				var mainTexPropertyName = material.HasProperty("_BaseMap") ? "_BaseMap" : material.HasProperty("_MainTex") ? "_MainTex" : material.HasProperty("baseColorTexture") ? "baseColorTexture" : "_BaseColorTexture";
+				var mainTexPropertyName = 
+					material.HasProperty("_BaseMap") ? "_BaseMap" : 
+					material.HasProperty("_BaseColorMap") ? "_BaseColorMap" : 
+					material.HasProperty("_MainTex") ? "_MainTex" : 
+					material.HasProperty("baseColorTexture") ? "baseColorTexture" : "_BaseColorTexture";
 				var mainTex = material.GetTexture(mainTexPropertyName);
 
 				if (mainTex)
@@ -845,6 +852,15 @@ namespace UnityGLTF
 					ExportTextureTransform(pbr.BaseColorTexture, material, "_BaseMap");
 				}
 			}
+			else if (material.HasProperty("_BaseColorMap"))
+			{
+				var mainTex = material.GetTexture("_BaseColorMap");
+				if (mainTex)
+				{
+					pbr.BaseColorTexture = ExportTextureInfo(mainTex, TextureMapType.BaseColor);
+					ExportTextureTransform(pbr.BaseColorTexture, material, "_BaseColorMap");
+				}
+			}
 			else if (material.HasProperty("_MainTex"))
 			{
 				var mainTex = material.GetTexture("_MainTex");
@@ -910,6 +926,16 @@ namespace UnityGLTF
 				{
 					diffuseTexture = ExportTextureInfo(mainTex, TextureMapType.BaseColor);
 					ExportTextureTransform(diffuseTexture, materialObj, "_BaseMap");
+				}
+			}
+			else if (materialObj.HasProperty("_BaseColorMap"))
+			{
+				var mainTex = materialObj.GetTexture("_BaseColorMap");
+
+				if (mainTex != null)
+				{
+					diffuseTexture = ExportTextureInfo(mainTex, TextureMapType.BaseColor);
+					ExportTextureTransform(diffuseTexture, materialObj, "_BaseColorMap");
 				}
 			}
 			else if (materialObj.HasProperty("_MainTex"))

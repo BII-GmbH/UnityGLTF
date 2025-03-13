@@ -3,11 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using GLTF.Schema;
 using GLTF.Schema.KHR_lights_punctual;
-using GLTF.Utilities;
 using UnityEngine;
 using UnityGLTF.Extensions;
 using UnityGLTF.JsonPointer;
 using UnityGLTF.Plugins;
+using AnimationSampler = GLTF.Schema.AnimationSampler;
 using Object = UnityEngine.Object;
 
 namespace UnityGLTF
@@ -44,7 +44,7 @@ namespace UnityGLTF
 		///		_exporter.GetRoot().Animations.Add(_animationA);
 		///	};
 		/// </code></example>
-		public void AddAnimationData(Object animatedObject, string propertyName, GLTFAnimation animation, float[] times, object[] values)
+		public void AddAnimationData(Object animatedObject, string propertyName, GLTFAnimation animation, AnimationInterpolationType interpolationType, float[] times, object[] values)
 		{
 			if (!animatedObject) return;
 			
@@ -254,15 +254,17 @@ namespace UnityGLTF
 				Root = _root
 			};
 
-			AccessorId timeAccessor = ExportAccessor(times);
+			AccessorId timeAccessor = ExportAccessor(times.Select(d => (float)d).ToArray());
 
 			AnimationChannel Tchannel = new AnimationChannel();
 			AnimationChannelTarget TchannelTarget = new AnimationChannelTarget() { Path = propertyName, Node = Node };
 			Tchannel.Target = TchannelTarget;
+			
 
 			AnimationSampler Tsampler = new AnimationSampler();
 			Tsampler.Input = timeAccessor;
-
+			Tsampler.Interpolation = interpolationType.ToSchemaEnum();
+			
 			// for cases where one property needs to be split up into multiple tracks
 			// example: emissiveFactor * emissiveStrength
 			// TODO not needed when secondPropertyName==null
@@ -407,6 +409,9 @@ namespace UnityGLTF
 							return c;
 						}), keepColorAlpha);
 					}
+					break;
+				default:
+					Debug.LogError($"GLTFExporter: Sampler returned unexpected type {val.GetType()}", animatedObject);
 					break;
 			}
 

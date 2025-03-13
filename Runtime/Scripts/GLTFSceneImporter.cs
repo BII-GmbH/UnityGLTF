@@ -205,6 +205,11 @@ namespace UnityGLTF
 		/// </summary>
 		public string CustomShaderName { get; set; }
 
+		/// <summary>
+		/// Whether to use <see cref="GLTFMaterial.OriginalUnityShaderName"/> on materials
+		/// </summary>
+		public bool UseOriginalUnityShader { get; set; }
+
 		public GameObject LastLoadedScene
 		{
 			get { return _lastLoadedScene; }
@@ -287,7 +292,7 @@ namespace UnityGLTF
 			VerifyDataLoader();
 		}
 
-		public GLTFSceneImporter(GLTFRoot rootNode, Stream gltfStream, ImportOptions options) : this(options)
+		public GLTFSceneImporter(GLTFRoot rootNode, Stream gltfStream, ImportOptions options, bool verifyDataLoader = true) : this(options)
 		{
 			_gltfRoot = rootNode;
 
@@ -296,7 +301,10 @@ namespace UnityGLTF
 				_gltfStream = new GLBStream { Stream = gltfStream, StartPosition = gltfStream.Position };
 			}
 
-			VerifyDataLoader();
+			if (verifyDataLoader)
+			{
+				VerifyDataLoader();
+			}
 		}
 		
 		/// <summary>
@@ -339,6 +347,7 @@ namespace UnityGLTF
 				Name = "Default",
 				AlphaMode = AlphaMode.OPAQUE,
 				DoubleSided = false,
+				OriginalUnityShaderName = "",
 				PbrMetallicRoughness = new PbrMetallicRoughness
 				{
 					MetallicFactor = 1, 

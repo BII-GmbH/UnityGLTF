@@ -1,6 +1,8 @@
+using System.Linq;
 using GLTF.Extensions;
 using GLTF.Math;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace GLTF.Schema
 {
@@ -78,6 +80,13 @@ namespace GLTF.Schema
 		/// lighting equation is evaluated.
 		/// </summary>
 		public bool DoubleSided;
+		
+		/// <summary>
+		/// Specifies the name of the originally used Unity shader.
+		/// It is only used if <see cref="GLTFSceneImporter.UseOriginalUnityShader"/> is true.
+		/// It cannot be overridden by <see cref="GLTFSceneImporter.CustomShaderName"/>.
+		/// </summary>
+		public string OriginalUnityShaderName;
 
 		public GLTFMaterial()
 		{
@@ -116,6 +125,7 @@ namespace GLTF.Schema
 			AlphaMode = material.AlphaMode;
 			AlphaCutoff = material.AlphaCutoff;
 			DoubleSided = material.DoubleSided;
+			OriginalUnityShaderName = material.OriginalUnityShaderName;
 		}
 
 		public static GLTFMaterial Deserialize(GLTFRoot root, JsonReader reader)
@@ -161,6 +171,12 @@ namespace GLTF.Schema
 						material.DefaultPropertyDeserializer(root, reader);
 						break;
 				}
+			}
+
+			if (material.Extras is JObject extras && 
+				extras.ContainsKey("shaderName") && 
+				extras["shaderName"] is JValue { Type: JTokenType.String } shaderName) {
+				material.OriginalUnityShaderName = shaderName.Value<string>();
 			}
 
 			return material;
@@ -227,6 +243,15 @@ namespace GLTF.Schema
 			{
 				writer.WritePropertyName("doubleSided");
 				writer.WriteValue(true);
+			}
+			
+			if (OriginalUnityShaderName != null)
+			{
+				writer.WritePropertyName("extras");
+				writer.WriteStartObject();
+				writer.WritePropertyName("shaderName");
+				writer.WriteValue(OriginalUnityShaderName);  
+				writer.WriteEndObject();
 			}
 
 			base.Serialize(writer);

@@ -34,12 +34,7 @@ namespace UnityGLTF
 	    public UnityEvent recordingStarted;
 		public UnityEvent<string> recordingEnded;
 
-		private double CurrentTime =>
-#if UNITY_2020_1_OR_NEWER
-			Time.timeAsDouble;
-#else
-			Time.time;
-#endif
+		private float CurrentTime => Time.time;
 
 		[ContextMenu("Start Recording")]
 		public virtual void StartRecording()
@@ -62,7 +57,14 @@ namespace UnityGLTF
 				shouldUseAnimationPointer = false;
 			}
 
-			recorder = new GLTFRecorder(exportRoot, shouldRecordBlendShapes, recordRootInWorldSpace, shouldUseAnimationPointer);
+			recorder = new GLTFRecorder(
+				exportRoot,
+				recordTransformInWorldSpace: tr => recordRootInWorldSpace && tr == exportRoot,
+				recordBlendShapes: shouldRecordBlendShapes,
+				recordAnimationPointer: shouldUseAnimationPointer,
+				recordVisibility: true
+			);
+			
 			recorder.StartRecording(CurrentTime);
 			recordingStarted?.Invoke();
 
@@ -73,7 +75,7 @@ namespace UnityGLTF
 		public virtual void StopRecording()
 		{
 			var filename = outputFile.Replace("<Timestamp>", System.DateTime.Now.ToString("yyyyMMdd-HHmmss"));
-			recorder.EndRecording(filename);
+			recorder.EndRecordingAndSaveToFile(filename);
 			recordingEnded?.Invoke(filename);
 		}
 
