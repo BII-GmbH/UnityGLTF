@@ -85,7 +85,7 @@ namespace UnityGLTF.Timeline
 
         internal TData? sample(AnimationData data) {
             var target = getTarget(data.transform);
-            return target != null ? GetValue(data.transform, target, data) : default;
+            return target ? GetValue(data.transform, target, data) : default;
         }
         
         public AnimationTrack StartNewAnimationTrackAt(AnimationData data, float time) =>

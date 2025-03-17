@@ -360,6 +360,7 @@ namespace UnityGLTF.Timeline
 					collectAndProcessSingleTrack(
 						gltfSceneExporter,
 						anim,
+						kvp.Key,
 						track,
 						visibilityTrack,
 						calculateTranslationBounds,
@@ -378,7 +379,7 @@ namespace UnityGLTF.Timeline
 					}
 					
 					var (interpolation, times, scales) = visibilityTrackToScaleTrack(visibilityTrack);
-					gltfSceneExporter.AddAnimationData(kvp.Key, "scale", anim, interpolation, times, scales.Cast<object>().ToArray());
+					gltfSceneExporter.AddAnimationData(kvp.Key, kvp.Key, "scale", anim, interpolation, times, scales.Cast<object>().ToArray());
 				}
 			}
 		}
@@ -386,6 +387,8 @@ namespace UnityGLTF.Timeline
 		private void collectAndProcessSingleTrack(
 			AnimationDataCollector gltfSceneExporter,
 			GLTFAnimation animation,
+			// This is not guaranteed to be the same as track.AnimatedObjectUntyped (for example if the track is exporting a material
+			Transform trackTargetTransform,
 			AnimationTrack track,
 			VisibilityTrack? visibilityTrack,
 			bool calculateTranslationBounds,
@@ -444,7 +447,7 @@ namespace UnityGLTF.Timeline
 			var (filteredTimes, filteredValues) = AnimationFilteringUtils.RemoveUnneededKeyframes(trackTimes, trackValues);
 			(trackTimes, trackValues) = (filteredTimes.ToArray(), filteredValues.ToArray());
 			
-			gltfSceneExporter.AddAnimationData(track.AnimatedObjectUntyped, track.PropertyName, animation, track.InterpolationType, trackTimes, trackValues);
+			gltfSceneExporter.AddAnimationData(trackTargetTransform, track.AnimatedObjectUntyped, track.PropertyName, animation, track.InterpolationType, trackTimes, trackValues);
 		}
 
 		/// use this only if you only have a visibility track, no scale, otherwise use <see cref="mergeVisibilityAndScaleTracks"/> instead to merge the two 

@@ -132,6 +132,7 @@ namespace UnityGLTF
 		/// <param name="times">The timestamps of the animated data. Each timestamp corresponds to the data point at the same index</param>
 		/// <param name="values">The animated data. Each value corresponds to the timestamp at the same index</param>
 		void AddAnimationData(
+			Transform targetTransform,
 			Object animatedObject,
 			string propertyName,
 			GLTFAnimation animation,
