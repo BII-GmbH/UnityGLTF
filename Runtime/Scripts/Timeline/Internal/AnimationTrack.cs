@@ -140,7 +140,6 @@ namespace UnityGLTF.Timeline
             // If that is the case we can remove/overwrite the middle sample with the new value.
             
             if (HasLastValue && hasSecondToLastValue) {
-                // these properties construct stuff for the return value - get once and reuse
                 var lastValue = LastValue!;
                 var secondToLast = secondToLastValue!;
                 
