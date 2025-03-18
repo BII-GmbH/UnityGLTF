@@ -12,7 +12,7 @@ ScriptedImporter:
   userData: 
   assetBundleName: 
   assetBundleVariant: 
-  script: {fileID: 11500000, guid: 804e1ce4c496647cfa3f1a1134187c71, type: 3}
+  script: {instanceID: 0}
   _removeEmptyRootObjects: 1
   _scaleFactor: 1
   _maximumLod: 300
@@ -36,15 +36,14 @@ ScriptedImporter:
   _useSceneNameIdentifier: 1
   _textureCompression: -50
   optimizeGameObjects: 0
-  materials:
-  - {fileID: 3297912226980038121, guid: 941ea53b9d7aafa4886b8bdd2c0f2963, type: 3}
+  materials: []
   textures: []
   hasSceneData: 1
   hasAnimationData: 1
   hasMaterialData: 1
-  hasTextureData: 0
+  hasTextureData: 1
   animations: []
   _extensions: []
   _textures: []
-  _mainAssetIdentifier: scenes/SimpleAnimation
+  _mainAssetIdentifier: 
   _importPlugins: []

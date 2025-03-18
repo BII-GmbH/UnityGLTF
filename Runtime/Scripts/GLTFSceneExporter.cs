@@ -189,6 +189,8 @@ namespace UnityGLTF
 		private static ILogger Debug = UnityEngine.Debug.unityLogger;
 		private List<GLTFExportPluginContext> _plugins = new List<GLTFExportPluginContext>();
 
+		public IReadOnlyList<GLTFExportPluginContext> Plugins => _plugins;
+		
 		public struct TextureMapType
 		{
 			public const string BaseColor = "baseColorTexture";
@@ -426,6 +428,8 @@ namespace UnityGLTF
 		private const int GLTFHeaderSize = 12;
 		private const int SectionHeaderSize = 8;
 
+		private bool _visbilityPluginEnabled = false;
+		
 		public struct UniqueTexture : IEquatable<UniqueTexture>
 		{
 			public Texture Texture;
@@ -466,7 +470,11 @@ namespace UnityGLTF
 				{
 					// We dont want to use GetHashCode() for the texture here since it will change the hash after restarting the editor
 					#if UNITY_EDITOR
-					var hashCode = Texture ? Texture.imageContentsHash.GetHashCode() : 0;
+					var hashCode = 0;
+					if (Texture && Texture.imageContentsHash.isValid)
+						hashCode = Texture.imageContentsHash.GetHashCode();
+					else if (Texture)
+						hashCode = Texture.GetHashCode();
 					#else
 					var hashCode = Texture ? Texture.GetHashCode() : 0;
 					#endif
@@ -638,7 +646,8 @@ namespace UnityGLTF
 			var normalChannelShader = Resources.Load("NormalChannel", typeof(Shader)) as Shader;
 			_normalChannelMaterial = new Material(normalChannelShader);
 
-			_rootTransforms = rootTransforms;
+			// Remove invalid transforms
+			_rootTransforms = rootTransforms?.Where(x => x).ToArray() ?? Array.Empty<Transform>();
 
 			_exportedTransforms = new Dictionary<int, int>();
 			_exportedCameras = new Dictionary<int, int>();
@@ -654,7 +663,7 @@ namespace UnityGLTF
 				Asset = new Asset
 				{
 					Version = "2.0",
-					Generator = "UnityGLTF"
+					Generator = settings.Generator
 				},
 				Buffers = new List<GLTFBuffer>(),
 				BufferViews = new List<BufferView>(),
@@ -683,6 +692,12 @@ namespace UnityGLTF
 				Root = _root
 			};
 			_root.Buffers.Add(_buffer);
+			
+			_visbilityPluginEnabled = settings.ExportPlugins.Any(x => x is VisibilityExport && x.Enabled);
+			if (_visbilityPluginEnabled && !settings.ExportDisabledGameObjects)
+			{
+				Debug.Log(LogType.Warning,"KHR_node_visibility export plugin is enabled, but Export Disabled GameObjects is not. This may lead to unexpected results.");
+			}
 		}
 
 		/// <summary>
@@ -967,6 +982,8 @@ namespace UnityGLTF
 		/// </remarks>
 		private static string EnsureValidFileName(string filename)
 		{
+			if (filename == null) return "";
+			
 			var invalidChars = Regex.Escape(new string(Path.GetInvalidFileNameChars()));
 			var invalidReStr = string.Format(@"[{0}]+", invalidChars);
 
@@ -1021,6 +1038,7 @@ namespace UnityGLTF
 			{
 				return false;
 			}
+			
 			if (settings.UseMainCameraVisibility && (_exportLayerMask >= 0 && _exportLayerMask != (_exportLayerMask | 1 << transform.gameObject.layer))) return false;
 			if (transform.CompareTag("EditorOnly")) return false;
 			return !_exportContext.ignoredTransforms.Contains(transform);
@@ -1028,6 +1046,8 @@ namespace UnityGLTF
 
 		private SceneId ExportScene(string name, Transform[] rootObjTransforms)
 		{
+			if (rootObjTransforms == null || rootObjTransforms.Length < 1) return null;
+			
 			exportSceneMarker.Begin();
 
 			var scene = new GLTFScene();
@@ -1053,6 +1073,11 @@ namespace UnityGLTF
 			scene.Nodes = new List<NodeId>(rootObjTransforms.Length);
 			foreach (var transform in rootObjTransforms)
 			{
+				if (!transform)
+				{
+					Debug.LogWarning("GLTFSceneExporter", $"Skipping empty transform in root transforms provided for scene export for {name}", transform);
+					continue;
+				}
 				scene.Nodes.Add(ExportNode(transform));
 			}
 
@@ -1080,10 +1105,19 @@ namespace UnityGLTF
 			if (_exportedTransforms.TryGetValue(nodeTransform.GetInstanceID(), out var existingNodeId))
 				return new NodeId() { Id = existingNodeId, Root = _root };
 
+			foreach (var plugin in _plugins)
+				if (!(plugin?.ShouldNodeExport(this, _root, nodeTransform) ?? true)) return null;
+
 			exportNodeMarker.Begin();
 			
 			var node = new Node();
 
+			if (_visbilityPluginEnabled && !nodeTransform.gameObject.activeSelf)
+			{
+				DeclareExtensionUsage(KHR_node_visibility_Factory.EXTENSION_NAME, false);
+				node.AddExtension(KHR_node_visibility_Factory.EXTENSION_NAME, new KHR_node_visibility { visible = false });
+			}
+			
 			if (ExportNames)
 			{
 				node.Name = makeUniqueNodeName(nodeTransform);
@@ -1236,7 +1270,8 @@ namespace UnityGLTF
 				foreach (var child in nonPrimitives)
 				{
 					if (!shouldExportTransform(child.transform)) continue;
-					parentOfChilds.Children.Add(ExportNode(child.transform));
+					var childNode = ExportNode(child.transform);
+					if (childNode != null) parentOfChilds.Children.Add(childNode);
 				}
 			}
 

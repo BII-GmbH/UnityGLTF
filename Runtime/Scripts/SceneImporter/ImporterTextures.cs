@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using GLTF.Schema;
@@ -20,6 +21,7 @@ namespace UnityGLTF
 	public partial class GLTFSceneImporter
 	{
 		internal const string EMPTY_TEXTURE_NAME_SUFFIX = " \0";
+		private Dictionary<int, int> _imageDeduplicationLinks; // Org Image ID -> distinct Image ID
 
 		private class TextureData
 		{
@@ -34,8 +36,9 @@ namespace UnityGLTF
 
 		private async Task CreateNotReferencedTexture(int index)
 		{
+			if (Root.Textures == null) return;
 			if (Root.Textures[index].Source != null
-			    && Root.Images.Count > 0
+			    && Root.Images?.Count > 0
 			    && Root.Images.Count > Root.Textures[index].Source.Id
 			    && string.IsNullOrEmpty(Root.Textures[index].Source.Value.Uri))
 			{
@@ -70,7 +73,103 @@ namespace UnityGLTF
 
 			return result;
 		}
+        
+		private static int ComputeHash(byte[] data)
+		{
+			unchecked
+			{
+				const int p = 16777619;
+				int hash = (int)2166136261;
 
+				for (int i = 0; i < data.Length; i++)
+					hash = (hash ^ data[i]) * p;
+
+				return hash;
+			}
+		}
+		
+        private Dictionary<int, int> CollectImageHashes()
+        {
+	        if (_gltfRoot.Images == null) return new Dictionary<int, int>();
+	        Dictionary<int, int> hashes = new Dictionary<int, int>();
+
+	        int index = -1;
+            foreach (var image in _gltfRoot.Images)
+            {
+	            index++;
+                if (image.Uri == null)
+                {
+	                if (image.BufferView == null)
+		                continue;
+
+	                var stream = GetImageStream(image, -1);
+	                if (stream == null || stream.Length == 0)
+		                continue;
+	                
+	                // Create a hash for the stream data
+	                var bufferData = new byte[stream.Length];
+	                stream.Read(bufferData, 0, bufferData.Length);
+	                
+	                int streamHash = ComputeHash(bufferData);
+	                
+	                hashes.Add(index, streamHash);
+                }
+                else
+                {
+	                hashes.Add(index, image.Uri.GetHashCode());
+                }
+            }
+
+            return hashes;
+        }
+        
+        private void CheckForDuplicateImages()
+        {
+	        var hashes = CollectImageHashes();
+	        var reverseHashes = new Dictionary<int, int>();
+	        foreach (var h in hashes)
+		        reverseHashes[h.Value] = h.Key;
+	        
+	        _imageDeduplicationLinks = new Dictionary<int, int>();
+	        foreach (var h in hashes)
+		        _imageDeduplicationLinks[h.Key] = reverseHashes[h.Value];
+        }
+        
+        private Stream GetImageStream(GLTFImage image, int imageCacheIndex)
+        {
+	        Stream stream = null;
+	        if (image.Uri == null)
+	        {
+		        if (image.BufferView == null)
+			        return null;
+
+		        var bufferView = image.BufferView.Value;
+		        BufferCacheData bufferContents = _assetCache.BufferCache[bufferView.Buffer.Id];
+		        if (bufferContents.bufferData.IsCreated)
+		        {
+			        bufferContents.Stream.Position = bufferView.ByteOffset + bufferContents.ChunkOffset;
+			        stream = new SubStream(bufferContents.Stream, 0, bufferView.ByteLength);
+		        }
+	        }
+	        else
+	        {
+		        string uri = image.Uri;
+
+		        byte[] bufferData;
+		        URIHelper.TryParseBase64(uri, out bufferData);
+		        if (bufferData != null)
+		        {
+			        stream = new MemoryStream(bufferData, 0, bufferData.Length, false, true);
+		        }
+		        else
+		        {
+			        stream = _assetCache.ImageStreamCache[imageCacheIndex];
+		        }
+	        }
+
+	        return stream;
+        }
+      
 		protected async Task ConstructImage(GLTFImage image, int imageCacheIndex, bool markGpuOnly, bool isLinear, bool isNormal)
 		{
 			if (_assetCache.InvalidImageCache[imageCacheIndex])
@@ -78,33 +177,7 @@ namespace UnityGLTF
 
 			if (_assetCache.ImageCache[imageCacheIndex] == null)
 			{
-				Stream stream = null;
-				if (image.Uri == null)
-				{
-					var bufferView = image.BufferView.Value;
-					BufferCacheData bufferContents = _assetCache.BufferCache[bufferView.Buffer.Id];
-					if (bufferContents.bufferData.IsCreated)
-					{
-						bufferContents.Stream.Position = bufferView.ByteOffset + bufferContents.ChunkOffset;
-						stream = new SubStream(bufferContents.Stream, 0, bufferView.ByteLength);
-					}
-				}
-				else
-				{
-					string uri = image.Uri;
-
-					byte[] bufferData;
-					URIHelper.TryParseBase64(uri, out bufferData);
-					if (bufferData != null)
-					{
-						stream = new MemoryStream(bufferData, 0, bufferData.Length, false, true);
-					}
-					else
-					{
-						stream = _assetCache.ImageStreamCache[imageCacheIndex];
-					}
-				}
-
+				Stream stream = GetImageStream(image, imageCacheIndex);
 				await YieldOnTimeoutAndThrowOnLowMemory();
 				await ConstructUnityTexture(stream, markGpuOnly, isLinear, isNormal, image, imageCacheIndex);
 			}
@@ -141,12 +214,21 @@ namespace UnityGLTF
 		// With using KTX, we need to return a new Texture2D instance at the moment. Unity KTX package does not support loading into existing one
 		async Task<Texture2D> CheckMimeTypeAndLoadImage(GLTFImage image, Texture2D texture, NativeArray<byte> data, bool markGpuOnly, bool isLinear)
 		{
+			bool textureWillBeCompressed = false;
+#if UNITY_EDITOR
+			if (Context.SourceImporter != null)
+#endif
+			{
+				if (_options.RuntimeTextureCompression != RuntimeTextureCompression.None)
+					textureWillBeCompressed = true;
+			}
+
 			switch (image.MimeType)
 			{
 				case "image/png":
 				case "image/jpeg":
 					//	NOTE: the second parameter of LoadImage() marks non-readable, but we can't mark it until after we call Apply()
-					texture.LoadImage(data.ToArray(), markGpuOnly);
+					texture.LoadImage(data.ToArray(), markGpuOnly && !textureWillBeCompressed);
 					break;
 				case "image/exr":
 					Debug.Log(LogType.Warning, $"EXR images are not supported. The texture {texture.name} won't be imported. File: {_gltfFileName}");
@@ -164,7 +246,7 @@ namespace UnityGLTF
 #endif
 						var ktxTexture = new KtxUnity.KtxTexture();
 						
-						var resultTextureData = await ktxTexture.LoadFromBytes(data, isLinear);
+						var resultTextureData = await ktxTexture.LoadFromBytes(data, isLinear, mipChain: GenerateMipMapsForTextures);
 						texture = resultTextureData.texture;
 						texture.name = textureName;
 					}
@@ -177,7 +259,7 @@ namespace UnityGLTF
 					}
 					break;
 				default:
-					texture.LoadImage(data.ToArray(), markGpuOnly);
+					texture.LoadImage(data.ToArray(), markGpuOnly && !textureWillBeCompressed);
 					break;
 			}
 
@@ -188,6 +270,20 @@ namespace UnityGLTF
 				texture.wrapModeV = TextureWrapMode.Repeat;
 				texture.wrapModeU = TextureWrapMode.Repeat;
 				texture.filterMode = FilterMode.Bilinear;
+			}
+#if UNITY_EDITOR
+			if (Context.SourceImporter != null)
+#endif
+			{
+				// Only when this import is not an Asset Import
+				
+				if (_options.RuntimeTextureCompression != RuntimeTextureCompression.None)
+				{
+					// Texture need to be readable to compress it
+					texture.Compress(_options.RuntimeTextureCompression == RuntimeTextureCompression.HighQuality);
+					if (markGpuOnly)
+						texture.Apply(true, true);
+				}
 			}
 
 			await Task.CompletedTask;
@@ -267,8 +363,7 @@ namespace UnityGLTF
 				texture = null;
 				Debug.Log(LogType.Error, "Buffer file " + invalidStream.RelativeFilePath + " not found in path: " + invalidStream.AbsoluteFilePath+ $" (File: {_gltfFileName})");
 			}
-			else
-			if (_nativeBuffers.TryGetValue(stream, out var nativeData))
+			else if (stream != null && _nativeBuffers.TryGetValue(stream, out var nativeData))
 			{
 				var bufferView = await GetBufferData(image.BufferView.Value.Buffer);
 				await YieldOnTimeoutAndThrowOnLowMemory();
@@ -286,7 +381,7 @@ namespace UnityGLTF
 					}
 				}
 			}
-			else
+			else if (stream != null)
 			{
 				byte[] buffer = new byte[stream.Length];
 
@@ -332,7 +427,15 @@ namespace UnityGLTF
 			{
 				return ((KHR_texture_basisu)texture.Extensions[KHR_texture_basisu.EXTENSION_NAME]).source.Id;
 			}
-			return texture.Source?.Id ?? 0;
+			
+			int id = texture.Source?.Id ?? 0;
+			if (_imageDeduplicationLinks != null)
+			{
+				if (_imageDeduplicationLinks.TryGetValue(id, out int replacedId))
+					id = replacedId;
+			}
+			
+			return id;
 		}
 
 		protected virtual bool IsTextureFlipped(GLTFTexture texture)

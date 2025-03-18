@@ -205,8 +205,8 @@ namespace UnityGLTF
 					key.outTangent = 0;
 					break;
 				case InterpolationType.LINEAR:
-					key.inTangent = GetCurveKeyframeLeftLinearSlope(keyframes, keyframeIndex);
-					key.outTangent = GetCurveKeyframeLeftLinearSlope(keyframes, keyframeIndex + 1);
+					key.inTangent = GetCurveKeyframeLeftLinearSlope(keyframes, keyframeIndex, ref AnyAnimationTimeNotIncreasing);
+					key.outTangent = GetCurveKeyframeLeftLinearSlope(keyframes, keyframeIndex + 1, ref AnyAnimationTimeNotIncreasing);
 					break;
 				case InterpolationType.STEP:
 					key.inTangent = float.PositiveInfinity;
@@ -218,7 +218,7 @@ namespace UnityGLTF
 			keyframes[keyframeIndex] = key;
 		}
 
-		private static float GetCurveKeyframeLeftLinearSlope(Keyframe[] keyframes, int keyframeIndex)
+		private static float GetCurveKeyframeLeftLinearSlope(Keyframe[] keyframes, int keyframeIndex, ref bool anyNonCreasing)
 		{
 			if (keyframeIndex <= 0 || keyframeIndex >= keyframes.Length)
 			{
@@ -233,7 +233,7 @@ namespace UnityGLTF
 				var k = keyframes[keyframeIndex];
 				k.time = keyframes[keyframeIndex - 1].time + Mathf.Epsilon + 1 / 100f;
 				keyframes[keyframeIndex] = k;
-				Debug.Log(LogType.Warning, "Time of subsequent animation keyframes is not increasing (glTF-Validator error ACCESSOR_ANIMATION_INPUT_NON_INCREASING)");
+				anyNonCreasing = true;
 				return float.PositiveInfinity;
 			}
 			return valueDelta / timeDelta;
@@ -384,16 +384,26 @@ namespace UnityGLTF
 									if (!mat.UnityMaterial)
 										continue;
 									
-									if (!AnimationPointerHelpers.BuildImportMaterialAnimationPointerData(pointerImportContext.materialPropertiesRemapper, mat.UnityMaterial, gltfPropertyPath, samplerCache.Output.AccessorId.Value.Type, out pointerData))
+									if (!AnimationPointerHelpers.BuildImportMaterialAnimationPointerData(pointer.path, pointerImportContext.materialPropertiesRemapper, mat.UnityMaterial, gltfPropertyPath, samplerCache.Output, out pointerData))
 										continue;
-									
-									pointerData.primaryData = samplerCache.Output;
-									pointerData.primaryPath = pointer.path;
-									if (!string.IsNullOrEmpty(pointerData.secondaryPath))
+									pointerData.targetNodeIds = nodeIds;
+									if (string.IsNullOrEmpty(pointerData.primaryPath))
+									{
+										pointerData.primaryPath = "/" + pointerHierarchy.ExtractPath().Replace(rootIndex.next.ExtractPath(), pointerData.primaryProperty);
+										pointerData.primaryData = FindSecondaryChannel(pointerData.primaryPath);
+										if (pointerData.primaryData != null)
+										{
+											//cancel here and process this combined property later when we found first the Primary Property
+											continue;
+										}
+									}
+									else
+									if (!string.IsNullOrEmpty(pointerData.secondaryProperty))
 									{
 										// When an property has potentially a second Sampler, we need to find it. e.g. like EmissionFactor and EmissionStrength
-										string secondaryPath = $"/{pointerHierarchy.elementName}/{rootIndex.index.ToString()}/{pointerData.secondaryPath}";
-										pointerData.secondaryData = FindSecondaryChannel(secondaryPath);
+
+										pointerData.secondaryPath = "/" + pointerHierarchy.ExtractPath().Replace(rootIndex.next.ExtractPath(), pointerData.secondaryProperty);
+										pointerData.secondaryData = FindSecondaryChannel(pointerData.secondaryPath);
 									}
 									break;
 								case "cameras":

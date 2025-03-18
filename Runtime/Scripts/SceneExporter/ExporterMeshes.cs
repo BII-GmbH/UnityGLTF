@@ -17,7 +17,7 @@ namespace UnityGLTF
 	{
 		private struct MeshAccessors
 		{
-			public AccessorId aPosition, aNormal, aTangent, aTexcoord0, aTexcoord1, aColor0, aJoints0, aWeights0;
+			public AccessorId aPosition, aNormal, aTangent, aTexcoord0, aTexcoord1, aTexcoord2, aColor0, aJoints0, aWeights0;
 			public Dictionary<int, MeshPrimitive> subMeshPrimitives;
 		}
 
@@ -250,21 +250,58 @@ namespace UnityGLTF
 
 			if (!_meshToPrims.ContainsKey(meshObj))
 			{
-				AccessorId aPosition = null, aNormal = null, aTangent = null, aTexcoord0 = null, aTexcoord1 = null, aColor0 = null;
+				AccessorId aPosition = null, aNormal = null, aTangent = null, aTexcoord0 = null, aTexcoord1 = null, aTexcoord2 = null, aColor0 = null;
 
 				aPosition = ExportAccessor(SchemaExtensions.ConvertVector3CoordinateSpaceAndCopy(meshObj.vertices, SchemaExtensions.CoordinateSpaceConversionScale));
 
-				if (meshObj.normals.Length != 0)
+				if (meshObj.HasVertexAttribute(VertexAttribute.Normal))
 					aNormal = ExportAccessor(SchemaExtensions.ConvertVector3CoordinateSpaceAndCopy(meshObj.normals, SchemaExtensions.CoordinateSpaceConversionScale));
 
-				if (meshObj.tangents.Length != 0)
+				if (meshObj.HasVertexAttribute(VertexAttribute.Tangent))
 					aTangent = ExportAccessor(SchemaExtensions.ConvertTangentCoordinateSpaceAndCopy(meshObj.tangents, SchemaExtensions.TangentSpaceConversionScale));
 
-				if (meshObj.uv.Length != 0)
-					aTexcoord0 = ExportAccessor(SchemaExtensions.FlipTexCoordArrayVAndCopy(meshObj.uv));
+				if (meshObj.HasVertexAttribute(VertexAttribute.TexCoord0))
+				{
+					var uvDim = meshObj.GetVertexAttributeDimension(VertexAttribute.TexCoord0);
+					if (uvDim != 2) Debug.LogWarning(null, "UV0 must be Vector2 in glTF, but it has " + uvDim + " channels. Only xy will be exported. Mesh: " + meshObj.name);
+					var uv= meshObj.uv;
+					if (uv.Length != 0)
+						aTexcoord0 = ExportAccessor(SchemaExtensions.FlipTexCoordArrayVAndCopy(uv));
+				}
+				
+				if (meshObj.HasVertexAttribute(VertexAttribute.TexCoord1))
+				{
+					var uvDim1 = meshObj.GetVertexAttributeDimension(VertexAttribute.TexCoord1);
+					if (uvDim1 != 2)
+						Debug.LogWarning(null, "UV1 must be Vector2 in glTF, but it has " + uvDim1 + " channels. Only xy will be exported. Mesh: " + meshObj.name);
+					var uv2 = meshObj.uv2;
+					if (uv2.Length != 0)
+						aTexcoord1 = ExportAccessor(SchemaExtensions.FlipTexCoordArrayVAndCopy(uv2));
+				}
 
-				if (meshObj.uv2.Length != 0)
-					aTexcoord1 = ExportAccessor(SchemaExtensions.FlipTexCoordArrayVAndCopy(meshObj.uv2));
+				// From UV2, we're exporting as custom attribute
+				if (meshObj.HasVertexAttribute(VertexAttribute.TexCoord2))
+				{
+					var uvDim2 = meshObj.GetVertexAttributeDimension(VertexAttribute.TexCoord2);
+					if (uvDim2 == 2)
+					{
+						var uvs = new List<Vector2>(meshObj.vertexCount);
+						meshObj.GetUVs(2, uvs);
+						aTexcoord2 = ExportAccessor(uvs.ToArray());
+					}
+					else if (uvDim2 == 3)
+					{
+						var uvs = new List<Vector3>(meshObj.vertexCount);
+						meshObj.GetUVs(2, uvs);
+						aTexcoord2 = ExportAccessor(uvs.ToArray());
+					}
+					else if (uvDim2 == 4)
+					{
+						var uvs = new List<Vector4>(meshObj.vertexCount);
+						meshObj.GetUVs(2, uvs);
+						aTexcoord2 = ExportAccessor(uvs.ToArray());
+					}
+				}
 
 				if (settings.ExportVertexColors && meshObj.colors.Length != 0)
 					aColor0 = ExportAccessor(QualitySettings.activeColorSpace == ColorSpace.Linear ? meshObj.colors : meshObj.colors.ToLinear(), true);
@@ -274,6 +311,7 @@ namespace UnityGLTF
 				if (aTangent != null) aTangent.Value.BufferView.Value.Target = BufferViewTarget.ArrayBuffer;
 				if (aTexcoord0 != null) aTexcoord0.Value.BufferView.Value.Target = BufferViewTarget.ArrayBuffer;
 				if (aTexcoord1 != null) aTexcoord1.Value.BufferView.Value.Target = BufferViewTarget.ArrayBuffer;
+				if (aTexcoord2 != null) aTexcoord2.Value.BufferView.Value.Target = BufferViewTarget.ArrayBuffer;
 				if (aColor0 != null) aColor0.Value.BufferView.Value.Target = BufferViewTarget.ArrayBuffer;
 
 				_meshToPrims.Add(meshObj, new MeshAccessors()
@@ -283,6 +321,7 @@ namespace UnityGLTF
 					aTangent = aTangent,
 					aTexcoord0 = aTexcoord0,
 					aTexcoord1 = aTexcoord1,
+					aTexcoord2 = aTexcoord2,
 					aColor0 = aColor0,
 					subMeshPrimitives = new Dictionary<int, MeshPrimitive>()
 				});
@@ -322,6 +361,8 @@ namespace UnityGLTF
 						primitive.Attributes.Add(SemanticProperties.TEXCOORD_0, accessors.aTexcoord0);
 					if (accessors.aTexcoord1 != null)
 						primitive.Attributes.Add(SemanticProperties.TEXCOORD_1, accessors.aTexcoord1);
+					if (accessors.aTexcoord2 != null)
+						primitive.Attributes.Add(SemanticProperties.TEXCOORD_2, accessors.aTexcoord2);
 					if (accessors.aColor0 != null)
 						primitive.Attributes.Add(SemanticProperties.COLOR_0, accessors.aColor0);
 

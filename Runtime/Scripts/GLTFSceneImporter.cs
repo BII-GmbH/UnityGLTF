@@ -15,9 +15,7 @@ using UnityGLTF.Extensions;
 using UnityGLTF.Loader;
 using UnityGLTF.Plugins;
 using Quaternion = UnityEngine.Quaternion;
-using Vector2 = UnityEngine.Vector2;
 using Vector3 = UnityEngine.Vector3;
-using Vector4 = UnityEngine.Vector4;
 #if !WINDOWS_UWP && !UNITY_WEBGL
 using ThreadPriority = System.Threading.ThreadPriority;
 #endif
@@ -25,6 +23,21 @@ using WrapMode = UnityEngine.WrapMode;
 
 namespace UnityGLTF
 {
+	[Flags]
+	public enum DeduplicateOptions
+	{
+		None = 0,
+		Meshes = 1,
+		Textures = 2,
+	}
+
+	public enum RuntimeTextureCompression
+	{
+		None,
+		LowQuality ,
+		HighQuality,
+	}
+	
 	public class ImportOptions
 	{
 #pragma warning disable CS0618 // Type or member is obsolete
@@ -40,13 +53,13 @@ namespace UnityGLTF
 		public AnimationMethod AnimationMethod = AnimationMethod.Legacy;
 		public bool AnimationLoopTime = true;
 		public bool AnimationLoopPose = false;
-
+		public DeduplicateOptions DeduplicateResources = DeduplicateOptions.None;
 		public bool SwapUVs = false;
 		public GLTFImporterNormals ImportNormals = GLTFImporterNormals.Import;
 		public GLTFImporterNormals ImportTangents = GLTFImporterNormals.Import;
 		public bool ImportBlendShapeNames = true;
 		public CameraImportOption CameraImport = CameraImportOption.ImportAndCameraDisabled;
-
+		public RuntimeTextureCompression RuntimeTextureCompression = RuntimeTextureCompression.None;
 		public BlendShapeFrameWeightSetting BlendShapeFrameWeight = new BlendShapeFrameWeightSetting(BlendShapeFrameWeightSetting.MultiplierOption.Multiplier1);
 
 #if UNITY_EDITOR
@@ -73,51 +86,7 @@ namespace UnityGLTF
 		Mecanim,
 		MecanimHumanoid,
 	}
-
-	public class UnityMeshData
-	{
-		public bool[] subMeshDataCreated;
-		public Vector3[] Vertices;
-		public Vector3[] Normals;
-		public Vector4[] Tangents;
-		public Vector2[] Uv1;
-		public Vector2[] Uv2;
-		public Vector2[] Uv3;
-		public Vector2[] Uv4;
-		public Color[] Colors;
-		public BoneWeight[] BoneWeights;
-
-		public Vector3[][] MorphTargetVertices;
-		public Vector3[][] MorphTargetNormals;
-		public Vector3[][] MorphTargetTangents;
-
-		public MeshTopology[] Topology;
-		public DrawMode[] DrawModes;
-		public int[][] Indices;
-		
-		public HashSet<int> alreadyAddedAccessors = new HashSet<int>();
-		public uint[] subMeshVertexOffset;
-		
-		public void Clear()
-		{
-			Vertices = null;
-			Normals = null;
-			Tangents = null;
-			Uv1 = null;
-			Uv2 = null;
-			Uv3 = null;
-			Uv4 = null;
-			Colors = null;
-			BoneWeights = null;
-			MorphTargetVertices = null;
-			MorphTargetNormals = null;
-			MorphTargetTangents = null;
-			Topology = null;
-			Indices = null;
-			subMeshVertexOffset = null;
-		}
-	}
-
+	
 	public struct ImportProgress
 	{
 		public bool IsDownloaded;
@@ -246,6 +215,8 @@ namespace UnityGLTF
 			get { return _lastLoadedScene; }
 		}
 
+		private bool AnyAnimationTimeNotIncreasing;
+
 		public TextureCacheData[] TextureCache => _assetCache.TextureCache;
 		public Texture2D[] InvalidImageCache => _assetCache.InvalidImageCache;
 		public MaterialCacheData[] MaterialCache => _assetCache.MaterialCache;
@@ -266,7 +237,7 @@ namespace UnityGLTF
 		/// Whether to keep a CPU-side copy of the texture after upload to GPU
 		/// </summary>
 		/// <remaks>
-		/// This is is necessary when a texture is used with different sampler states, as Unity doesn't allow setting
+		/// This is necessary when a texture is used with different sampler states, as Unity doesn't allow setting
 		/// of filter and wrap modes separately form the texture object. Setting this to false will omit making a copy
 		/// of a texture in that case and use the original texture's sampler state wherever it's referenced; this is
 		/// appropriate in cases such as the filter and wrap modes being specified in the shader instead
@@ -335,7 +306,30 @@ namespace UnityGLTF
 				VerifyDataLoader();
 			}
 		}
+		
+		/// <summary>
+		/// Loads a glTF file from a stream. It's recommended to load only gltf data without any external references. 
+		/// </summary>
+		/// <example>
+		/// <code>
+		/// var stream = new FileStream(filePath, FileMode.Open);
+		///	var importOptions = new ImportOptions();
+		///	var importer = new GLTFSceneImporter(stream, importOptions);
+		///	await importer.LoadSceneAsync();
+		///	stream.Dispose();
+		/// </code>
+		/// </example>
+		public GLTFSceneImporter(Stream gltfStream, ImportOptions options) : this(options)
+		{
+			if (gltfStream != null)
+			{
+				_gltfStream = new GLBStream { Stream = gltfStream, StartPosition = gltfStream.Position };
+			}
+			GLTFParser.ParseJson(_gltfStream.Stream, out _gltfRoot, _gltfStream.StartPosition);
 
+			VerifyDataLoader();
+		}
+		
 		private GLTFSceneImporter(ImportOptions options)
 		{
 			if (options.ImportContext != null)
@@ -401,6 +395,11 @@ namespace UnityGLTF
 			{
 				if (_options.ExternalDataLoader == null)
 				{
+					if (string.IsNullOrEmpty(_gltfFileName))
+					{
+						Debug.Log(LogType.Warning, "No filename specified for GLTFSceneImporter, external references will not be loaded");
+						return;
+					}
 					_options.DataLoader = new UnityWebRequestLoader(URIHelper.GetDirectoryName(_gltfFileName));
 					_gltfFileName = URIHelper.GetFileFromUri(new Uri(_gltfFileName));
 				}
@@ -505,7 +504,9 @@ namespace UnityGLTF
 				DisposeNativeBuffers();
 
 				onLoadComplete?.Invoke(null, ExceptionDispatchInfo.Capture(ex));
-				Debug.Log(LogType.Error, $"Error loading file: {_gltfFileName}");
+				Debug.Log(LogType.Error, $"Error loading file: {_gltfFileName}" 
+				                         + System.Environment.NewLine + "Message: " + ex.Message
+				                         + System.Environment.NewLine + "StackTrace: " + ex.StackTrace);
 				throw;
 			}
 			finally
@@ -517,9 +518,10 @@ namespace UnityGLTF
 			}
 			_gltfStream.Stream.Close();
 			DisposeNativeBuffers();
-			if (progressStatus.NodeLoaded != progressStatus.NodeTotal) Debug.Log(LogType.Error, $"Nodes loaded ({progressStatus.NodeLoaded}) does not match node total in the scene ({progressStatus.NodeTotal}) (File: {_gltfFileName})");
-			if (progressStatus.TextureLoaded > progressStatus.TextureTotal) Debug.Log(LogType.Error, $"Textures loaded ({progressStatus.TextureLoaded}) is larger than texture total in the scene ({progressStatus.TextureTotal}) (File: {_gltfFileName})");
-
+			
+			if (this.progress != null)
+				await Task.Yield();
+			
 			onLoadComplete?.Invoke(LastLoadedScene, null);
 		}
 
@@ -663,7 +665,8 @@ namespace UnityGLTF
 				_assetCache.MaterialCache,
 				_assetCache.MeshCache,
 				_assetCache.TextureCache,
-				_assetCache.ImageCache
+				_assetCache.ImageCache,
+				_assetCache.AnimationCache
 			);
 		}
 
@@ -712,6 +715,24 @@ namespace UnityGLTF
 
 			// Free up some Memory, Accessor contents are no longer needed
 			FreeUpAccessorContents();
+
+			if (_options.DeduplicateResources != DeduplicateOptions.None)
+			{
+				if (IsMultithreaded)
+				{
+					if (_options.DeduplicateResources.HasFlag(DeduplicateOptions.Meshes))
+						await Task.Run(CheckForMeshDuplicates, cancellationToken);
+					if (_options.DeduplicateResources.HasFlag(DeduplicateOptions.Textures))
+						await Task.Run(CheckForDuplicateImages, cancellationToken);
+				}
+				else
+				{
+					if (_options.DeduplicateResources.HasFlag(DeduplicateOptions.Meshes))
+						CheckForMeshDuplicates();
+					if (_options.DeduplicateResources.HasFlag(DeduplicateOptions.Textures))
+						CheckForDuplicateImages();
+				}
+			}
 			
 			await ConstructScene(scene, showSceneObj, cancellationToken);
 
@@ -953,6 +974,16 @@ namespace UnityGLTF
 			return null;
 		}
 		
+		private bool ShouldBeVisible(Node node, GameObject nodeObj)
+		{
+			if (node.Extensions != null && node.Extensions.TryGetValue(KHR_node_visibility_Factory.EXTENSION_NAME, out var ext))
+			{
+				return (ext as KHR_node_visibility).visible;
+			}
+			else
+				return true;
+		}
+		
 		protected virtual async Task ConstructNode(Node node, int nodeIndex, CancellationToken cancellationToken)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
@@ -991,7 +1022,7 @@ namespace UnityGLTF
 					}
 				}
 
-				if (!ignoreMesh && node.Mesh != null)
+				if (!ignoreMesh && node.Mesh != null && node.Mesh.Value?.Primitives != null)
 				{
 					var mesh = node.Mesh.Value;
 					await ConstructMesh(mesh, node.Mesh.Id, cancellationToken);
@@ -1058,7 +1089,7 @@ namespace UnityGLTF
 
 				if (onlyMesh)
 				{
-					nodeObj.SetActive(true);
+					nodeObj.SetActive(ShouldBeVisible(node, nodeObj));
 					return;
 				}
 				
@@ -1122,8 +1153,7 @@ namespace UnityGLTF
 						inbetween.transform.localRotation = Quaternion.Inverse(SchemaExtensions.InvertDirection);
 					}
 				}
-				
-				nodeObj.SetActive(true);
+				nodeObj.SetActive( ShouldBeVisible(node, nodeObj));
 			}
 						
 			var instancesTRS = await GetInstancesTRS(node);
@@ -1134,6 +1164,7 @@ namespace UnityGLTF
 			}
 			else
 			{
+				var shouldBeVisible = ShouldBeVisible(node, nodeObj);
 				await CreateNodeComponentsAndChilds(true);
 				var instanceParentNode = new GameObject("Instances");
 				instanceParentNode.transform.SetParent(nodeObj.transform, false);
@@ -1167,7 +1198,7 @@ namespace UnityGLTF
 					nodeObj.transform.localScale = instancesTRS[i].Item3;
 					nodeObj.name = $"Instance {i.ToString()}";
 				}
-				instanceParentNode.gameObject.SetActive(true);
+				instanceParentNode.gameObject.SetActive(shouldBeVisible);
 			}
 			
 			progressStatus.NodeLoaded++;
@@ -1313,6 +1344,7 @@ namespace UnityGLTF
 							for (int i = 0; i < constructedClips.Count; i++)
 							{
 								var clip = constructedClips[i];
+								clip.wrapMode = _options.AnimationLoopTime ? WrapMode.Loop : WrapMode.Default;
 								animation.AddClip(clip, clip.name);
 								if (i == 0)
 								{
@@ -1349,6 +1381,11 @@ namespace UnityGLTF
 #else
 						Debug.Log(LogType.Warning, "glTF scene contains animations but com.unity.modules.animation isn't installed. Install that module to import animations.");
 #endif
+						if (AnyAnimationTimeNotIncreasing)
+						{
+							Debug.Log(LogType.Warning, $"Time of some subsequent animation keyframes is not increasing in {_gltfFileName} (glTF-Validator error ACCESSOR_ANIMATION_INPUT_NON_INCREASING)");
+						}
+						
 						CreatedAnimationClips = constructedClips.ToArray();
 					}
 				}

@@ -19,6 +19,44 @@ namespace UnityGLTF
 	    private const string k_SettingsFileName = "UnityGLTFSettings.asset";
 	    public const string k_RuntimeAndEditorSettingsPath = "Assets/Resources/" + k_SettingsFileName;
 
+	    
+	    [SerializeField, HideInInspector]
+	    // Will be set on building in PackageVersionPreprocessBuild.cs
+	    internal string packageVersion = null;
+	    
+	    public string Generator { get => GetGenerator();}
+	    
+#if UNITY_EDITOR
+	    internal string GetUnityGltfVersion()
+	    {
+		    var packageInfo = UnityEditor.PackageManager.PackageInfo.FindForAssembly(Assembly.GetAssembly(typeof(GLTFSettings)));
+		    if (packageInfo != null)
+			    return packageInfo.version;
+		    return "";
+	    }
+#endif
+	    
+	    internal string GetGenerator()
+	    {
+		    string gltfVersion;
+#if UNITY_EDITOR
+		    gltfVersion = GetUnityGltfVersion();
+#else
+			gltfVersion = packageVersion;
+#endif
+		    var renderPipeline = "Built-in RP";
+		    var renderPipelineAsset =  UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline;
+		    if (renderPipelineAsset)
+		    { 
+			    renderPipeline = renderPipelineAsset.GetType().Name;
+			    if (renderPipeline == "UniversalRenderPipelineAsset")
+				    renderPipeline = "URP";
+			    else if (renderPipeline == "HighDefinitionRenderPipelineAsset")
+				    renderPipeline = "HDRP";
+		    }
+		    return  $"UnityGltf {gltfVersion}, Unity {Application.unityVersion}, {renderPipeline}";
+	    }
+	    
 	    [Flags]
 	    public enum BlendShapeExportPropertyFlags
 	    {
@@ -28,6 +66,27 @@ namespace UnityGLTF
 		    Tangent = 4,
 		    All = ~0
 	    }
+	    
+#if UNITY_EDITOR
+	    [Serializable]
+	    public class ShaderStrippingSettings
+	    {
+		    [Flags]
+		    public enum ShaderPassStrippingMode
+		    {
+			    None = 0,
+			    BuiltInPasses = 1,
+			    URPForwardPasses = 2,
+			    URPDeferredPasses = 4,
+		    }
+		    
+		    public bool stripPassesFromAllShaders = false;
+		    public ShaderPassStrippingMode stripPasses = ShaderPassStrippingMode.None;
+	    }
+	    
+	    [Tooltip("Strip unnecessary shader passes from built-in and URP shader passes. This can drastically reduce shader compile time and size.")]
+	    public ShaderStrippingSettings shaderStrippingSettings = new ShaderStrippingSettings();
+#endif
 
 	    // Plugins
 	    [SerializeField, HideInInspector]

@@ -204,6 +204,7 @@ namespace UnityGLTF
 			var KHR_materials_clearcoat = settings && settings.KHR_materials_clearcoat;
 			var KHR_materials_pbrSpecularGlossiness = settings && settings.KHR_materials_pbrSpecularGlossiness;
 			var KHR_materials_emissive_strength = settings && settings.KHR_materials_emissive_strength;
+			var KHR_materials_sheen = settings && settings.KHR_materials_sheen;
 			// ReSharper restore InconsistentNaming
 			
 			var sgMapper = mapper as ISpecGlossUniformMap;
@@ -310,6 +311,64 @@ namespace UnityGLTF
 				}
 			}
 
+			var sheenMapper = mapper as ISheenMap;
+			if (sheenMapper != null && KHR_materials_sheen)
+			{
+				var sheen = GetSheen(def);
+				if (sheen != null)
+				{
+					sheenMapper.SheenColorFactor = sheen.sheenColorFactor.ToUnityColorRaw();
+					sheenMapper.SheenRoughnessFactor = sheen.sheenRoughnessFactor;
+					MatHelper.SetKeyword(mapper.Material, "_SHEEN", true);
+					
+					if (sheen.sheenColorTexture != null)
+					{
+						var td = await FromTextureInfo(sheen.sheenColorTexture, false);
+						sheenMapper.SheenColorTexture = td.Texture;
+						sheenMapper.SheenColorTextureTexCoord = td.TexCoord;
+						var ext = GetTextureTransform(sheen.sheenColorTexture);
+						if (ext != null)
+						{
+							CalculateYOffsetAndScale(sheen.sheenColorTexture.Index, ext, out var scale, out var offset);
+							sheenMapper.SheenColorTextureOffset = offset;
+							sheenMapper.SheenColorTextureScale = scale;
+							sheenMapper.SheenColorTextureRotation = td.Rotation;
+							if (td.TexCoordExtra != null) sheenMapper.SheenColorTextureTexCoord = td.TexCoordExtra.Value;
+							SetTransformKeyword();
+						}
+						else if (IsTextureFlipped(sheen.sheenColorTexture.Index.Value))
+						{
+							sheenMapper.SheenColorTextureScale = new Vector2(1f,-1f);
+							sheenMapper.SheenColorTextureOffset = new Vector2(0f, 1f);
+							SetTransformKeyword();
+						}
+					}
+					
+					if (sheen.sheenRoughnessTexture != null)
+					{
+						var td = await FromTextureInfo(sheen.sheenRoughnessTexture, false);
+						sheenMapper.SheenRoughnessTexture = td.Texture;
+						sheenMapper.SheenColorTextureTexCoord = td.TexCoord;
+						var ext = GetTextureTransform(sheen.sheenRoughnessTexture);
+						if (ext != null)
+						{
+							CalculateYOffsetAndScale(sheen.sheenRoughnessTexture.Index, ext, out var scale, out var offset);
+							sheenMapper.SheenRoughnessTextureOffset = offset;
+							sheenMapper.SheenRoughnessTextureScale = scale;
+							sheenMapper.SheenRoughnessTextureRotation = td.Rotation;
+							if (td.TexCoordExtra != null) sheenMapper.SheenRoughnessTextureTexCoord = td.TexCoordExtra.Value;
+							SetTransformKeyword();
+						}
+						else if (IsTextureFlipped(sheen.sheenRoughnessTexture.Index.Value))
+						{
+							sheenMapper.SheenRoughnessTextureScale = new Vector2(1f,-1f);
+							sheenMapper.SheenRoughnessTextureOffset = new Vector2(0f, 1f);
+							SetTransformKeyword();
+						}
+					}
+				}
+			}
+			
 			var transmissionMapper = mapper as ITransmissionMap;
 			if (transmissionMapper != null && KHR_materials_transmission)
 			{
@@ -342,6 +401,9 @@ namespace UnityGLTF
 					}
 
 					mapper.Material.renderQueue = 3000;
+#if UNITY_VISIONOS
+					mapper.AlphaMode = AlphaMode.BLEND;
+#endif
 					bool hasDispersion = false;
 					if (transmissionMapper is IDispersionMap dispersionMapper)
 					{
@@ -373,6 +435,9 @@ namespace UnityGLTF
 				var volume = GetVolume(def);
 				if (volume != null)
 				{
+#if UNITY_VISIONOS
+					mapper.AlphaMode = AlphaMode.BLEND;
+#endif
 					volumeMapper.AttenuationColor = QualitySettings.activeColorSpace == ColorSpace.Linear ? volume.attenuationColor.ToUnityColorLinear() : volume.attenuationColor.ToUnityColorRaw();
 					volumeMapper.AttenuationDistance = volume.attenuationDistance;
 					volumeMapper.ThicknessFactor = volume.thicknessFactor;
@@ -868,6 +933,20 @@ namespace UnityGLTF
 				}
 			}
 
+			if (def.Extensions != null && def.Extensions.ContainsKey(KHR_materials_sheen_Factory.EXTENSION_NAME))
+			{
+				var sheenDef = (KHR_materials_sheen)def.Extensions[KHR_materials_sheen_Factory.EXTENSION_NAME];
+				if (sheenDef.sheenColorTexture != null)
+				{
+					var textureId = sheenDef.sheenColorTexture.Index;
+					tasks.Add(ConstructImageBuffer(textureId.Value, textureId.Id));
+				}
+				if (sheenDef.sheenRoughnessTexture != null)
+				{
+					var textureId = sheenDef.sheenRoughnessTexture.Index;
+					tasks.Add(ConstructImageBuffer(textureId.Value, textureId.Id));
+				}
+			}
 
 			if (def.Extensions != null && def.Extensions.ContainsKey(KHR_materials_clearcoat_Factory.EXTENSION_NAME))
 			{
@@ -921,6 +1000,16 @@ namespace UnityGLTF
 			    def.Extensions != null && def.Extensions.TryGetValue(KHR_materials_transmission_Factory.EXTENSION_NAME, out var extension))
 			{
 				return (KHR_materials_transmission) extension;
+			}
+			return null;
+		}
+		
+		protected virtual KHR_materials_sheen GetSheen(GLTFMaterial def)
+		{
+			if (_gltfRoot.ExtensionsUsed != null && _gltfRoot.ExtensionsUsed.Contains(KHR_materials_sheen_Factory.EXTENSION_NAME) &&
+			    def.Extensions != null && def.Extensions.TryGetValue(KHR_materials_sheen_Factory.EXTENSION_NAME, out var extension))
+			{
+				return (KHR_materials_sheen) extension;
 			}
 			return null;
 		}
