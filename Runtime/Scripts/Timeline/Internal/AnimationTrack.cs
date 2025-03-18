@@ -132,7 +132,7 @@ namespace UnityGLTF.Timeline
             // - one with the same value right before the instantaneous teleportation,
             // - and then at the time of the change, we need a sample at (4,5,6)
             // With this setup, now the linear interpolation only has an effect in the
-            // very short duration between the last two samples and we get the animation we want.
+            // very short duration between the last two samples, and we get the animation we want.
 
             // How do we achieve both?
             // Always sample & record and then on adding the next sample(s) we check
