@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Unity.Profiling;
 using UnityEngine;
+using UnityEngine.Profiling;
 using Object = UnityEngine.Object;
 
 namespace UnityGLTF.Timeline
@@ -39,7 +40,9 @@ namespace UnityGLTF.Timeline
         TData[] Values { get; }
         
         // Semantically this is an Option<TData>.
-        (TData Value, bool HasValue)  LastValue { get; }
+        // Separated into two properties for better performance since these are called very often
+        TData?  LastValue { get; }
+        bool HasLastValue { get; }
 
         TData? InitialValue => Values.Length > 0 ? Values[0] : default;
     }
@@ -62,13 +65,12 @@ namespace UnityGLTF.Timeline
         public float[] Times => samples.Select(t => t.Time).ToArray();
         public TData[] Values => samples.Select(t => t.Value).ToArray();
         
-        private (float Time, TData Value)? lastSample => samples.Count > 0 ? samples.Last() : null; 
-        private (float Time, TData Value)? secondToLastSample => samples.Count > 1 ? samples.SkipLast(1).Last() : null; 
+        public float? LastTime => samples.Count > 0 ? samples[^1].Time : null; 
+        public TData? LastValue => samples.Count > 0 ? samples[^1].Value : default; 
+        public bool HasLastValue => samples.Count > 0;
         
-        public float? LastTime => lastSample?.Time;
-        public (TData Value, bool HasValue) LastValue => lastSample != null ? (lastSample.Value.Value, true) : (default!, false);
-        
-        private (TData Value, bool HasValue) secondToLastValue => secondToLastSample != null ? (secondToLastSample.Value.Value, true) : (default!, false);
+        private TData? secondToLastValue => samples.Count > 1 ? samples[^2].Value : default;
+        private bool hasSecondToLastValue => samples.Count > 1;
         
         protected BaseAnimationTrack(AnimationData tr, AnimationSampler<TObject, TData> plan, float time, IEqualityComparer<TData> dataComparer, Func<TData?, TData?>? overrideInitialValueFunc = null) {
             this.animationData = tr;
@@ -130,25 +132,25 @@ namespace UnityGLTF.Timeline
             // - one with the same value right before the instantaneous teleportation,
             // - and then at the time of the change, we need a sample at (4,5,6)
             // With this setup, now the linear interpolation only has an effect in the
-            // very short duration between the last two samples and we get the animation we want.
+            // very short duration between the last two samples, and we get the animation we want.
 
             // How do we achieve both?
             // Always sample & record and then on adding the next sample(s) we check
             // if the *last two* samples were identical to the current sample.
             // If that is the case we can remove/overwrite the middle sample with the new value.
-            lastSampleCheck.Begin();
-            if (LastValue.HasValue && secondToLastValue.HasValue) {
-                var lastSampled = LastValue.Value;
-                var secondLastSampled = secondToLastValue.Value;
+            
+            if (HasLastValue && hasSecondToLastValue) {
+                var lastValue = LastValue!;
+                var secondToLast = secondToLastValue!;
+                
                 using var __ = lastSampleCheckEquality.Auto(); 
-                if(dataComparer.Equals(lastSampled, secondLastSampled) &&
-                    dataComparer.Equals(lastSampled, value)) {
+                if(dataComparer.Equals(lastValue, secondToLast) &&
+                    dataComparer.Equals(lastValue, value)) {
                     using var ___ = removeLastSample.Auto();
                     samples.RemoveAt(samples.Count - 1);
                 }
             }
 
-            lastSampleCheck.End();
             
             insertData.Begin();
             samples.Add((time, value));

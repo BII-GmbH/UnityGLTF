@@ -44,7 +44,7 @@ namespace UnityGLTF
 		///		_exporter.GetRoot().Animations.Add(_animationA);
 		///	};
 		/// </code></example>
-		public void AddAnimationData(Object animatedObject, string propertyName, GLTFAnimation animation, AnimationInterpolationType interpolationType, float[] times, object[] values)
+		public void AddAnimationData(Transform _, Object animatedObject, string propertyName, GLTFAnimation animation, AnimationInterpolationType interpolationType, float[] times, object[] values)
 		{
 			if (!animatedObject) return;
 			
@@ -254,7 +254,7 @@ namespace UnityGLTF
 				Root = _root
 			};
 
-			AccessorId timeAccessor = ExportAccessor(times.Select(d => (float)d).ToArray());
+			AccessorId timeAccessor = ExportAccessor(times);
 
 			AnimationChannel Tchannel = new AnimationChannel();
 			AnimationChannelTarget TchannelTarget = new AnimationChannelTarget() { Path = propertyName, Node = Node };
