@@ -254,7 +254,7 @@ namespace UnityGLTF
 				Root = _root
 			};
 
-			AccessorId timeAccessor = ExportAccessor(times.Select(d => (float)d).ToArray());
+			AccessorId timeAccessor = ExportAccessor(times);
 
 			AnimationChannel Tchannel = new AnimationChannel();
 			AnimationChannelTarget TchannelTarget = new AnimationChannelTarget() { Path = propertyName, Node = Node };
