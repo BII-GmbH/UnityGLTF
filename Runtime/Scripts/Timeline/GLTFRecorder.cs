@@ -77,8 +77,8 @@ namespace UnityGLTF.Timeline
 		internal ICollection<Transform>? recordingList = null;
 		private bool allowRecordingTransform(Transform tr) => recordingList == null || recordingList.Contains(tr);
 
-		private Transform root;
-		private Dictionary<Transform, AnimationData> recordingAnimatedTransforms = new Dictionary<Transform, AnimationData>(64);
+		private readonly Transform root;
+		private readonly Dictionary<Transform, AnimationData> recordingAnimatedTransforms = new Dictionary<Transform, AnimationData>(64);
 
 		// this is a cache for the otherwise very allocation-heavy GetComponentsInChildren calls for every frame while recording
 		private readonly List<Transform> transformCache = new List<Transform>();
@@ -113,7 +113,7 @@ namespace UnityGLTF.Timeline
 		/// so the original recorded data is not modified. Every time you call EndRecording to the save the gltf/glb,
 		/// you can modify the data again. 
 		/// </summary>
-		public OnBeforeAddAnimationDataDelegate OnBeforeAddAnimationData;
+		public OnBeforeAddAnimationDataDelegate? OnBeforeAddAnimationData;
 		
 		/// <summary>
 		/// Callback to modify or add additional data to the gltf root after the recording has ended and animation
