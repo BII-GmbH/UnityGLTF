@@ -387,7 +387,7 @@ namespace UnityGLTF.Timeline
 		private void collectAndProcessSingleTrack(
 			AnimationDataCollector gltfSceneExporter,
 			GLTFAnimation animation,
-			// This is not guaranteed to be the same as track.AnimatedObjectUntyped (for example if the track is exporting a material
+			// This is not guaranteed to be the same as track.AnimatedObjectUntyped (for example if the track is exporting a material)
 			Transform trackTargetTransform,
 			AnimationTrack track,
 			VisibilityTrack? visibilityTrack,
