@@ -149,19 +149,9 @@ namespace UnityGLTF
 
 		private static Dictionary<Type, Editor> editorCache = new Dictionary<Type, Editor>();
 
-		internal static void OnPluginsGUI(IEnumerable<GLTFPlugin> plugins, bool allowDisabling = true)
+		private static void OnPluginsGUI<T>(List<T> plugins, bool allowDisabling = true) where T : GLTFPlugin 
 		{
-			var lastAssembly = "";
-			foreach (var plugin in plugins
-				         .OrderBy(x =>
-				         {
-					         var displayName = x.GetType().Assembly.GetName().Name;
-					         if (displayName == "UnityGLTFScripts") displayName = "____";
-					         return displayName;
-				         })
-				         .ThenBy(x => x ? x.DisplayName : "ZZZ"))
-			{
-				if (!plugin) continue;
+			void drawSinglePlugin(ref string lastAssembly, GLTFPlugin plugin) {
 				var pluginAssembly = plugin.GetType().Assembly.GetName().Name;
 				if (pluginAssembly == "UnityGLTFScripts") pluginAssembly = "UnityGLTF";
 				if (lastAssembly != pluginAssembly)
@@ -261,8 +251,46 @@ namespace UnityGLTF
 
 				EditorGUI.indentLevel--;
 			}
+			
+			if (GUILayout.Button("Search for plugins in codebase")) {
+				var newPlugins = createAllFoundPluginsForPluginType<T>()
+					.Where(newPlugin => newPlugin && plugins.All(existingPlugin =>  !existingPlugin || newPlugin.GetType() != existingPlugin.GetType())); 
+				foreach (var newPlugin in newPlugins) {
+					plugins.Add(newPlugin);
+				}
+			}
+			if (GUILayout.Button("Remove disabled entries")) {
+				
+				// reverse so removing does not invalidate later indices. allocate to avoid concurrent modification exception
+				foreach (var (plugin, index) in plugins.Select((p, index) => (p, index)).Reverse().ToArray()) {
+					if(!plugin || (!plugin.AlwaysEnabled && !plugin.Enabled))
+						plugins.RemoveAt(index);
+				}
+			}
+			
+			var lastAssembly = "";
+			foreach (var plugin in plugins
+		        .OrderBy(x =>
+		        {
+			        var displayName = x?.GetType().Assembly.GetName().Name ?? "Unknown";
+			        if (displayName == "UnityGLTFScripts") displayName = "____";
+			        return displayName;
+		        })
+		        .ThenBy(x => x ? x.DisplayName : "ZZZ"))
+			{
+				if (!plugin) continue;
+				drawSinglePlugin(ref lastAssembly, plugin);
+			}
 		}
 
+		private static IEnumerable<T> createAllFoundPluginsForPluginType<T>() where T : GLTFPlugin {
+			var subclasses =
+				AppDomain.CurrentDomain.GetAssemblies()
+					.SelectMany(ass => ass.GetTypes())
+					.Where(t => t.IsSubclassOf(typeof(T)));
+			// GLTFPlugin inherits from ScriptableObject so use its instantiation method instead of Activator.CreateInstance
+			return subclasses.Select(s => (T) ScriptableObject.CreateInstance(s));
+		}
 	}
 
 	[CustomEditor(typeof(GLTFSettings))]
