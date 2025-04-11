@@ -18,7 +18,11 @@ namespace UnityGLTF.Timeline.Samplers
         internal VisibilityTrack startNewAnimationTrackAtStartOfTime(AnimationData data, float time) =>
             new VisibilityTrack(data, this, time);
 
-        internal override GameObject getTarget(Transform transform) => transform.gameObject;
+        internal override GameObject getTarget(Transform transform) {
+            if (!transform) 
+                return null;
+            return transform.gameObject;
+        }
 
         public override bool GetValue(Transform transform, GameObject target, AnimationData data) =>
             target.activeSelf;

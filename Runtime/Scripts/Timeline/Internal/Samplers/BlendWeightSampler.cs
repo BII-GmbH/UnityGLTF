@@ -11,7 +11,11 @@ namespace UnityGLTF.Timeline.Samplers
 
         public override IEqualityComparer<float[]> DataComparer => EqualityComparer<float[]>.Default;
         
-        internal override SkinnedMeshRenderer getTarget(Transform transform) => transform.TryGetComponent<SkinnedMeshRenderer>(out var smr) ? smr : null;
+        internal override SkinnedMeshRenderer getTarget(Transform transform) {
+            if (!transform) 
+                return null;
+            return transform.TryGetComponent<SkinnedMeshRenderer>(out var smr) ? smr : null;
+        }
 
         public override float[] GetValue(Transform transform, SkinnedMeshRenderer target, AnimationData data) {
             if (target.sharedMesh) {
