@@ -14,6 +14,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using GLTF.Schema;
+using JetBrains.Annotations;
 using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.Profiling;
@@ -735,14 +736,21 @@ namespace UnityGLTF
 			}
 		}
 
-		private (MemoryStream BinStream, MemoryStream JsonStream) serializeToStreams(string sceneName) {
+		/// <summary>
+		/// 
+		/// </summary>
+		/// <param name="sceneName"></param>
+		/// <param name="binaryStream">The stream has to be resettable and .Length has to be readable - FileStream is recommended for large glbs that may exceed 2.1gb</param>
+		/// <param name="jsonStream">The stream has to be resettable and .Length has to be readable - FileStream is recommended for large glbs that may exceed 2.1gb</param>
+		/// <returns></returns>
+		private (Stream BinStream, Stream JsonStream) serializeToStreams(string sceneName, [CanBeNull] Stream binaryStream = null, [CanBeNull] Stream jsonStream = null) {
 			
 			exportGltfInitMarker.Begin();
-			var binStream = new MemoryStream();
-			var jsonStream = new MemoryStream();
+			binaryStream ??= new MemoryStream();
+			jsonStream ??= new MemoryStream();
 			_shouldUseInternalBufferForImages = true;
 
-			_bufferWriter = new BinaryWriterWithLessAllocations(binStream);
+			_bufferWriter = new BinaryWriterWithLessAllocations(binaryStream);
 
 			TextWriter jsonWriter = new StreamWriter(jsonStream, new UTF8Encoding(false));
 			exportGltfInitMarker.End();
@@ -782,9 +790,20 @@ namespace UnityGLTF
 			_bufferWriter.Flush();
 			jsonWriter.Flush();
 
-			return (binStream, jsonStream);
+			return (binaryStream, jsonStream);
 		}
 
+		public async Task WriteGlbToStreamWithExternalStreams(
+			Stream stream,
+			Stream binaryTempStream,
+			Stream jsonTempStream,
+			string sceneName) {
+			var (binStream, jsonStream) = serializeToStreams(sceneName, binaryTempStream, jsonTempStream);
+			await Task.Run(() => writeGLBToStream(stream, binStream, jsonStream));
+		}
+		
+		
+		
 		public async Task SaveGLBToStreamOnThread(Stream stream, string sceneName) {
 			var (binStream, jsonStream) = serializeToStreams(sceneName);
 			await Task.Run(() => writeGLBToStream(stream, binStream, jsonStream));
@@ -796,11 +815,9 @@ namespace UnityGLTF
 		}
 		
 		/// Writes a binary GLB file into a stream (memory stream, filestream, ...)
-		private static void writeGLBToStream(Stream outStream, MemoryStream binInStream, MemoryStream jsonInStream)
+		private static void writeGLBToStream(Stream outStream, Stream binInStream, Stream jsonInStream)
 		{
-			
 			gltfWriteOutMarker.Begin();
-			
 
 			// align to 4-byte boundary to comply with spec.
 			AlignToBoundary(jsonInStream);
@@ -810,7 +827,7 @@ namespace UnityGLTF
 				jsonInStream.Length + SectionHeaderSize + binInStream.Length);
 
 			var writer = new BinaryWriter(outStream);
-
+			
 			// write header
 			writer.Write(MagicGLTF);
 			writer.Write(Version);
