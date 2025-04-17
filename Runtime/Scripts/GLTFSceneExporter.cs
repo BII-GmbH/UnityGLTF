@@ -14,7 +14,6 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using GLTF.Schema;
-using JetBrains.Annotations;
 using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.Profiling;
@@ -736,14 +735,12 @@ namespace UnityGLTF
 			}
 		}
 
-		/// <summary>
-		/// 
-		/// </summary>
-		/// <param name="sceneName"></param>
 		/// <param name="binaryStream">The stream has to be resettable and .Length has to be readable - FileStream is recommended for large glbs that may exceed 2.1gb</param>
 		/// <param name="jsonStream">The stream has to be resettable and .Length has to be readable - FileStream is recommended for large glbs that may exceed 2.1gb</param>
-		/// <returns></returns>
-		private (Stream BinStream, Stream JsonStream) serializeToStreams(string sceneName, [CanBeNull] Stream binaryStream = null, [CanBeNull] Stream jsonStream = null) {
+		/// <remarks>This method has to run on the main thread, otherwise Unity will throw exceptions</remarks>
+		/// <returns>the streams passed in, or newly created memory streams if null was passed to the parameters</returns>
+		#nullable enable
+		private (Stream BinStream, Stream JsonStream) serializeToStreams(string sceneName, Stream? binaryStream = null, Stream? jsonStream = null) {
 			
 			exportGltfInitMarker.Begin();
 			binaryStream ??= new MemoryStream();
@@ -768,11 +765,8 @@ namespace UnityGLTF
 			}
 
 			// Export skins
-			for (int i = 0; i < _skinnedNodes.Count; ++i)
-			{
-				Transform t = _skinnedNodes[i];
+			foreach (var t in _skinnedNodes)
 				ExportSkinFromNode(t);
-			}
 
 			afterSceneExportMarker.Begin();
 			foreach (var plugin in _plugins)
@@ -793,26 +787,31 @@ namespace UnityGLTF
 			return (binaryStream, jsonStream);
 		}
 
-		public async Task WriteGlbToStreamWithExternalStreams(
-			Stream stream,
+		/// <summary>
+		/// Writes the data of the glb file to <paramref name="finalOutStream"/>.
+		/// <paramref name="binaryTempStream"/> and <paramref name="jsonTempStream"/>
+		/// are used for intermediately writing binary and json data that will be copied
+		/// into the final glb afterwards. 
+		/// </summary>
+		/// <param name="finalOutStream">the final output stream</param>
+		/// <param name="binaryTempStream">temporary stream to write binary data to. Has to be resettable & support for .Length is required. FileStream is recommended</param>
+		/// <param name="jsonTempStream">temporary stream to write json data to. Has to be resettable & support for .Length is required. FileStream is recommended</param>
+		/// <param name="sceneName"></param>
+		public async Task WriteGlbToStreamWithTemporaryStreams(
+			Stream finalOutStream,
 			Stream binaryTempStream,
 			Stream jsonTempStream,
 			string sceneName) {
+			// has to be on the main thread, because unity
 			var (binStream, jsonStream) = serializeToStreams(sceneName, binaryTempStream, jsonTempStream);
-			await Task.Run(() => writeGLBToStream(stream, binStream, jsonStream));
+			await Task.Run(() => writeGLBToStream(finalOutStream, binStream, jsonStream));
 		}
 		
-		
-		
-		public async Task SaveGLBToStreamOnThread(Stream stream, string sceneName) {
-			var (binStream, jsonStream) = serializeToStreams(sceneName);
-			await Task.Run(() => writeGLBToStream(stream, binStream, jsonStream));
-		}
-
 		public void SaveGLBToStream(Stream stream, string sceneName) {
 			var (binStream, jsonStream) = serializeToStreams(sceneName);
 			writeGLBToStream(stream, binStream, jsonStream);
 		}
+		#nullable disable
 		
 		/// Writes a binary GLB file into a stream (memory stream, filestream, ...)
 		private static void writeGLBToStream(Stream outStream, Stream binInStream, Stream jsonInStream)
