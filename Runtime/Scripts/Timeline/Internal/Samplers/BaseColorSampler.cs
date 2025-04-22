@@ -11,12 +11,15 @@ namespace UnityGLTF.Timeline.Samplers
 
         public override IEqualityComparer<Color?> DataComparer => EqualityComparer<Color?>.Default;
 
-        internal override Material getTarget(Transform transform) =>
-            transform.TryGetComponent<MeshRenderer>(out var mr)
-                ? mr.sharedMaterial
-                : transform.TryGetComponent<SkinnedMeshRenderer>(out var smr)
-                    ? smr.sharedMaterial
-                    : null;
+        internal override Material getTarget(Transform transform) {
+            if (!transform) 
+                return null;
+            if (transform.TryGetComponent<MeshRenderer>(out var mr)) 
+                return mr.sharedMaterial;
+            if (transform.TryGetComponent<SkinnedMeshRenderer>(out var smr))
+                return smr.sharedMaterial;
+            return null;
+        }
 
         public override Color? GetValue(Transform transform, Material target, AnimationData data) {
             

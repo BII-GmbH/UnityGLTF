@@ -735,14 +735,19 @@ namespace UnityGLTF
 			}
 		}
 
-		private (MemoryStream BinStream, MemoryStream JsonStream) serializeToStreams(string sceneName) {
+		/// <param name="binaryStream">The stream has to be resettable and .Length has to be readable - FileStream is recommended for large glbs that may exceed 2.1gb</param>
+		/// <param name="jsonStream">The stream has to be resettable and .Length has to be readable - FileStream is recommended for large glbs that may exceed 2.1gb</param>
+		/// <remarks>This method has to run on the main thread, otherwise Unity will throw exceptions</remarks>
+		/// <returns>the streams passed in, or newly created memory streams if null was passed to the parameters</returns>
+		#nullable enable
+		private (Stream BinStream, Stream JsonStream) serializeToStreams(string sceneName, Stream? binaryStream = null, Stream? jsonStream = null) {
 			
 			exportGltfInitMarker.Begin();
-			var binStream = new MemoryStream();
-			var jsonStream = new MemoryStream();
+			binaryStream ??= new MemoryStream();
+			jsonStream ??= new MemoryStream();
 			_shouldUseInternalBufferForImages = true;
 
-			_bufferWriter = new BinaryWriterWithLessAllocations(binStream);
+			_bufferWriter = new BinaryWriterWithLessAllocations(binaryStream);
 
 			TextWriter jsonWriter = new StreamWriter(jsonStream, new UTF8Encoding(false));
 			exportGltfInitMarker.End();
@@ -760,11 +765,8 @@ namespace UnityGLTF
 			}
 
 			// Export skins
-			for (int i = 0; i < _skinnedNodes.Count; ++i)
-			{
-				Transform t = _skinnedNodes[i];
+			foreach (var t in _skinnedNodes)
 				ExportSkinFromNode(t);
-			}
 
 			afterSceneExportMarker.Begin();
 			foreach (var plugin in _plugins)
@@ -782,25 +784,39 @@ namespace UnityGLTF
 			_bufferWriter.Flush();
 			jsonWriter.Flush();
 
-			return (binStream, jsonStream);
+			return (binaryStream, jsonStream);
 		}
 
-		public async Task SaveGLBToStreamOnThread(Stream stream, string sceneName) {
-			var (binStream, jsonStream) = serializeToStreams(sceneName);
-			await Task.Run(() => writeGLBToStream(stream, binStream, jsonStream));
+		/// <summary>
+		/// Writes the data of the glb file to <paramref name="finalOutStream"/>.
+		/// <paramref name="binaryTempStream"/> and <paramref name="jsonTempStream"/>
+		/// are used for intermediately writing binary and json data that will be copied
+		/// into the final glb afterwards. 
+		/// </summary>
+		/// <param name="finalOutStream">the final output stream</param>
+		/// <param name="binaryTempStream">temporary stream to write binary data to. Has to be resettable & support for .Length is required. FileStream is recommended</param>
+		/// <param name="jsonTempStream">temporary stream to write json data to. Has to be resettable & support for .Length is required. FileStream is recommended</param>
+		/// <param name="sceneName"></param>
+		public async Task WriteGlbToStreamWithTemporaryStreams(
+			Stream finalOutStream,
+			Stream binaryTempStream,
+			Stream jsonTempStream,
+			string sceneName) {
+			// has to be on the main thread, because unity
+			var (binStream, jsonStream) = serializeToStreams(sceneName, binaryTempStream, jsonTempStream);
+			await Task.Run(() => writeGLBToStream(finalOutStream, binStream, jsonStream));
 		}
-
+		
 		public void SaveGLBToStream(Stream stream, string sceneName) {
 			var (binStream, jsonStream) = serializeToStreams(sceneName);
 			writeGLBToStream(stream, binStream, jsonStream);
 		}
+		#nullable disable
 		
 		/// Writes a binary GLB file into a stream (memory stream, filestream, ...)
-		private static void writeGLBToStream(Stream outStream, MemoryStream binInStream, MemoryStream jsonInStream)
+		private static void writeGLBToStream(Stream outStream, Stream binInStream, Stream jsonInStream)
 		{
-			
 			gltfWriteOutMarker.Begin();
-			
 
 			// align to 4-byte boundary to comply with spec.
 			AlignToBoundary(jsonInStream);
@@ -810,7 +826,7 @@ namespace UnityGLTF
 				jsonInStream.Length + SectionHeaderSize + binInStream.Length);
 
 			var writer = new BinaryWriter(outStream);
-
+			
 			// write header
 			writer.Write(MagicGLTF);
 			writer.Write(Version);
