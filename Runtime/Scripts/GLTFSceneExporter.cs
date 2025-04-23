@@ -821,10 +821,15 @@ namespace UnityGLTF
 			// align to 4-byte boundary to comply with spec.
 			AlignToBoundary(jsonInStream);
 			AlignToBoundary(binInStream, 0x00);
+			
+			var glbLength = GLTFHeaderSize + SectionHeaderSize +
+				jsonInStream.Length + SectionHeaderSize + binInStream.Length;
 
-			int glbLength = (int)(GLTFHeaderSize + SectionHeaderSize +
-				jsonInStream.Length + SectionHeaderSize + binInStream.Length);
-
+			if (glbLength >= int.MaxValue)
+				throw new OverflowException(
+					"Resulting file size would exceed 4 Gb (32-bit) glb file limit. Aborting before creating invalid file"
+				);
+			
 			var writer = new BinaryWriter(outStream);
 			
 			// write header
