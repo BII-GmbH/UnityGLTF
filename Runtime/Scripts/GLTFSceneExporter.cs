@@ -835,7 +835,7 @@ namespace UnityGLTF
 			// write header
 			writer.Write(MagicGLTF);
 			writer.Write(Version);
-			writer.Write(glbLength);
+			writer.Write((int)glbLength);
 
 			gltfWriteJsonStreamMarker.Begin();
 			// write JSON chunk header.
