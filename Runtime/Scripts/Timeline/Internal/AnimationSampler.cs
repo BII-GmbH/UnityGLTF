@@ -65,7 +65,7 @@ namespace UnityGLTF.Timeline
 
         public Object? GetTarget(Transform transform);
         
-        public AnimationTrack StartNewAnimationTrackAt(AnimationData data, float time);
+        public AnimationTrack StartNewAnimationTrackAt(AnimationData data, ulong time);
     }
     
     internal abstract class AnimationSampler<TObject, TData> : AnimationSampler
@@ -88,7 +88,7 @@ namespace UnityGLTF.Timeline
             return target ? GetValue(data.transform, target, data) : default;
         }
         
-        public AnimationTrack StartNewAnimationTrackAt(AnimationData data, float time) =>
+        public AnimationTrack StartNewAnimationTrackAt(AnimationData data, ulong time) =>
             new AnimationTrackImpl<TObject, TData>(data, this, time, DataComparer);
     }
 

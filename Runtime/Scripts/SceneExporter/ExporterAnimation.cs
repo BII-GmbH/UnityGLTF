@@ -1442,8 +1442,10 @@ namespace UnityGLTF
 				}
 			}
 
-			var (filteredTimes, filteredValue) = AnimationFilteringUtils.RemoveUnneededKeyframes(_times, _values);
-			(times, values) = (filteredTimes.ToArray(), filteredValue.ToArray());
+			throw new NotImplementedException();
+
+			// var (filteredTimes, filteredValue) = AnimationFilteringUtils.RemoveUnneededKeyframes(_times, _values);
+			// (times, values) = (filteredTimes.ToArray(), filteredValue.ToArray());
 
 			return true;
 		}

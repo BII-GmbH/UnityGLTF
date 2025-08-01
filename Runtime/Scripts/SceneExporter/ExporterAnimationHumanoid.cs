@@ -6,6 +6,7 @@
 #define ANIMATION_SUPPORTED
 #endif
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -103,102 +104,104 @@ namespace UnityGLTF
 				time = 0;
 			}
 
-			recorder.StartRecording(time);
-
-			while (time + timeStep < length)
-			{
-				time += timeStep;
-				foreach (var rig in rigs) rig.UpdatePreviewGraph(playableGraph);
-				AnimationMode.SamplePlayableGraph(playableGraph, 0, time);
-				recorder.UpdateRecording(time);
-			}
-
-			// last frame
-			time = length;
-#if UNITY_2020_2_OR_NEWER
-			foreach (var rig in rigs) rig.UpdatePreviewGraph(playableGraph);
-#endif
-			AnimationMode.SamplePlayableGraph(playableGraph, 0, time);
-			recorder.UpdateRecording(time);
-
-#if UNITY_2020_2_OR_NEWER
-			foreach (var rig in rigs) rig.StopPreview();
-#endif
-
-			AnimationMode.EndSampling();
-#if UNITY_2020_1_OR_NEWER
-			AnimationMode.StopAnimationMode(driver);
-#else
-			AnimationMode.StopAnimationMode();
-#endif
-
-			// reset prefab modifications if this was a prefab asset
-			if (isPrefabAsset) {
-				PrefabUtility.SetPropertyModifications(root, prefabModifications);
-			}
-
-			// seems to be necessary because the animation sampling API doesn't fully work;
-			// sometimes samples still "leak" into property modifications
-			Undo.FlushUndoRecordObjects();
-			Undo.PerformUndo();
-
-			recorder.endRecording(out var data);
-			if (data == null || !data.Any()) return;
-
-			string CalculatePath(Transform child, Transform parent)
-			{
-				if (child == parent) return "";
-				if (child.parent == null) return "";
-				var parentPath = CalculatePath(child.parent, parent);
-				if (!string.IsNullOrEmpty(parentPath)) return parentPath + "/" + child.name;
-				return child.name;
-			}
-
-			// convert AnimationData back to AnimationCurve (slow)
-			// better would be to directly emit the animation here, but then we need to be careful with partial hierarchies
-			// and other cases that can go wrong.
-			foreach (var kvp in data)
-			{
-				var curveSet = new TargetCurveSet();
-				curveSet.Init();
-
-				var positionTrack = kvp.Value.tracks.FirstOrDefault(x => x.PropertyName == "translation");
-				if (positionTrack != null)
-				{
-					var t0 = positionTrack.Times;
-					var frameData = positionTrack.ValuesUntyped;
-					var posX = new AnimationCurve(t0.Select((value, index) => new Keyframe((float)value, ((Vector3)frameData[index]).x)).ToArray());
-					var posY = new AnimationCurve(t0.Select((value, index) => new Keyframe((float)value, ((Vector3)frameData[index]).y)).ToArray());
-					var posZ = new AnimationCurve(t0.Select((value, index) => new Keyframe((float)value, ((Vector3)frameData[index]).z)).ToArray());
-					curveSet.translationCurves = new [] { posX, posY, posZ };
-				}
-
-				var rotationTrack = kvp.Value.tracks.FirstOrDefault(x => x.PropertyName == "rotation");
-				if (rotationTrack != null)
-				{
-					var t1 = rotationTrack.Times;
-					var frameData = rotationTrack.ValuesUntyped;
-					var rotX = new AnimationCurve(t1.Select((value, index) => new Keyframe((float)value, ((Quaternion)frameData[index]).x)).ToArray());
-					var rotY = new AnimationCurve(t1.Select((value, index) => new Keyframe((float)value, ((Quaternion)frameData[index]).y)).ToArray());
-					var rotZ = new AnimationCurve(t1.Select((value, index) => new Keyframe((float)value, ((Quaternion)frameData[index]).z)).ToArray());
-					var rotW = new AnimationCurve(t1.Select((value, index) => new Keyframe((float)value, ((Quaternion)frameData[index]).w)).ToArray());
-					curveSet.rotationCurves = new [] { rotX, rotY, rotZ, rotW };
-				}
-
-				var scaleTrack = kvp.Value.tracks.FirstOrDefault(x => x.PropertyName == "scale");
-				if (scaleTrack != null)
-				{
-					var t2 = scaleTrack.Times;
-					var frameData = scaleTrack.ValuesUntyped;
-					var sclX = new AnimationCurve(t2.Select((value, index) => new Keyframe((float)value, ((Vector3)frameData[index]).x)).ToArray());
-					var sclY = new AnimationCurve(t2.Select((value, index) => new Keyframe((float)value, ((Vector3)frameData[index]).y)).ToArray());
-					var sclZ = new AnimationCurve(t2.Select((value, index) => new Keyframe((float)value, ((Vector3)frameData[index]).z)).ToArray());
-					curveSet.scaleCurves = new [] { sclX, sclY, sclZ };
-				}
-
-				var calculatedPath = CalculatePath(kvp.Key, root.transform);
-				targetCurves[calculatedPath] = curveSet;
-			}
+			throw new NotImplementedException();
+			
+// 			recorder.StartRecording(time);
+//
+// 			while (time + timeStep < length)
+// 			{
+// 				time += timeStep;
+// 				foreach (var rig in rigs) rig.UpdatePreviewGraph(playableGraph);
+// 				AnimationMode.SamplePlayableGraph(playableGraph, 0, time);
+// 				recorder.UpdateRecording(time);
+// 			}
+//
+// 			// last frame
+// 			time = length;
+// #if UNITY_2020_2_OR_NEWER
+// 			foreach (var rig in rigs) rig.UpdatePreviewGraph(playableGraph);
+// #endif
+// 			AnimationMode.SamplePlayableGraph(playableGraph, 0, time);
+// 			recorder.UpdateRecording(time);
+//
+// #if UNITY_2020_2_OR_NEWER
+// 			foreach (var rig in rigs) rig.StopPreview();
+// #endif
+//
+// 			AnimationMode.EndSampling();
+// #if UNITY_2020_1_OR_NEWER
+// 			AnimationMode.StopAnimationMode(driver);
+// #else
+// 			AnimationMode.StopAnimationMode();
+// #endif
+//
+// 			// reset prefab modifications if this was a prefab asset
+// 			if (isPrefabAsset) {
+// 				PrefabUtility.SetPropertyModifications(root, prefabModifications);
+// 			}
+//
+// 			// seems to be necessary because the animation sampling API doesn't fully work;
+// 			// sometimes samples still "leak" into property modifications
+// 			Undo.FlushUndoRecordObjects();
+// 			Undo.PerformUndo();
+//
+// 			recorder.endRecording(out var data);
+// 			if (data == null || !data.Any()) return;
+//
+// 			string CalculatePath(Transform child, Transform parent)
+// 			{
+// 				if (child == parent) return "";
+// 				if (child.parent == null) return "";
+// 				var parentPath = CalculatePath(child.parent, parent);
+// 				if (!string.IsNullOrEmpty(parentPath)) return parentPath + "/" + child.name;
+// 				return child.name;
+// 			}
+//
+// 			// convert AnimationData back to AnimationCurve (slow)
+// 			// better would be to directly emit the animation here, but then we need to be careful with partial hierarchies
+// 			// and other cases that can go wrong.
+// 			foreach (var kvp in data)
+// 			{
+// 				var curveSet = new TargetCurveSet();
+// 				curveSet.Init();
+//
+// 				var positionTrack = kvp.Value.tracks.FirstOrDefault(x => x.PropertyName == "translation");
+// 				if (positionTrack != null)
+// 				{
+// 					var t0 = positionTrack.Times;
+// 					var frameData = positionTrack.ValuesUntyped;
+// 					var posX = new AnimationCurve(t0.Select((value, index) => new Keyframe((float)value, ((Vector3)frameData[index]).x)).ToArray());
+// 					var posY = new AnimationCurve(t0.Select((value, index) => new Keyframe((float)value, ((Vector3)frameData[index]).y)).ToArray());
+// 					var posZ = new AnimationCurve(t0.Select((value, index) => new Keyframe((float)value, ((Vector3)frameData[index]).z)).ToArray());
+// 					curveSet.translationCurves = new [] { posX, posY, posZ };
+// 				}
+//
+// 				var rotationTrack = kvp.Value.tracks.FirstOrDefault(x => x.PropertyName == "rotation");
+// 				if (rotationTrack != null)
+// 				{
+// 					var t1 = rotationTrack.Times;
+// 					var frameData = rotationTrack.ValuesUntyped;
+// 					var rotX = new AnimationCurve(t1.Select((value, index) => new Keyframe((float)value, ((Quaternion)frameData[index]).x)).ToArray());
+// 					var rotY = new AnimationCurve(t1.Select((value, index) => new Keyframe((float)value, ((Quaternion)frameData[index]).y)).ToArray());
+// 					var rotZ = new AnimationCurve(t1.Select((value, index) => new Keyframe((float)value, ((Quaternion)frameData[index]).z)).ToArray());
+// 					var rotW = new AnimationCurve(t1.Select((value, index) => new Keyframe((float)value, ((Quaternion)frameData[index]).w)).ToArray());
+// 					curveSet.rotationCurves = new [] { rotX, rotY, rotZ, rotW };
+// 				}
+//
+// 				var scaleTrack = kvp.Value.tracks.FirstOrDefault(x => x.PropertyName == "scale");
+// 				if (scaleTrack != null)
+// 				{
+// 					var t2 = scaleTrack.Times;
+// 					var frameData = scaleTrack.ValuesUntyped;
+// 					var sclX = new AnimationCurve(t2.Select((value, index) => new Keyframe((float)value, ((Vector3)frameData[index]).x)).ToArray());
+// 					var sclY = new AnimationCurve(t2.Select((value, index) => new Keyframe((float)value, ((Vector3)frameData[index]).y)).ToArray());
+// 					var sclZ = new AnimationCurve(t2.Select((value, index) => new Keyframe((float)value, ((Vector3)frameData[index]).z)).ToArray());
+// 					curveSet.scaleCurves = new [] { sclX, sclY, sclZ };
+// 				}
+//
+// 				var calculatedPath = CalculatePath(kvp.Key, root.transform);
+// 				targetCurves[calculatedPath] = curveSet;
+// 			}
 		}
 
 		private static MethodInfo _AddTransformTRS;

@@ -2,6 +2,7 @@
 #define NEW_INPUT
 #endif
 
+using System;
 using System.Collections;
 using System.Linq;
 using UnityEngine;
@@ -34,7 +35,7 @@ namespace UnityGLTF
 	    public UnityEvent recordingStarted;
 		public UnityEvent<string> recordingEnded;
 
-		private float CurrentTime => Time.time;
+		private TimeSpan CurrentTime => TimeSpan.FromSeconds(Time.time);
 
 		[ContextMenu("Start Recording")]
 		public virtual void StartRecording()
@@ -65,7 +66,7 @@ namespace UnityGLTF
 				recordVisibility: true
 			);
 			
-			recorder.StartRecording(CurrentTime);
+			recorder.StartRecording(fixedAnimationSampleRate: TimeSpan.FromMilliseconds(20),CurrentTime);
 			recordingStarted?.Invoke();
 
 			StartCoroutine(_UpdateRecording());

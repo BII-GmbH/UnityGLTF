@@ -26,7 +26,7 @@ namespace UnityGLTF
 	    /// <param name="values">The values of the animation at the timestamp at the corresponding index</param>
 	    /// <returns></returns>
 	    [Pure]
-	    public static (IEnumerable<float>, IEnumerable<object>) RemoveUnneededKeyframes(IReadOnlyList<float> times, IReadOnlyList<object> values) {
+	    public static (IEnumerable<ulong>, IEnumerable<object>) RemoveUnneededKeyframes(IReadOnlyList<ulong> times, IReadOnlyList<object> values) {
 		    if (times.Count <= 1) return (times, values);
 
 		    using var _ = removeAnimationUnneededKeyframesMarker.Auto();
@@ -56,7 +56,7 @@ namespace UnityGLTF
 			    
 			    if (foundDuplicates.Count <= 0) return (times, values);
 			    removeAnimationUnneededKeyframesCopyWithoutDuplicatesMarker.Begin();
-			    var t2 = new List<float>(times.Count);
+			    var t2 = new List<ulong>(times.Count);
 			    var v2 = new List<object>(values.Count);
 			    
 			    var nextDuplicate = foundDuplicates.Dequeue();
@@ -86,7 +86,7 @@ namespace UnityGLTF
 			    var arraySize = values.Count / times.Count;
 			    var singleFrameWeights = values.Take(arraySize).ToArray(); 
 			    
-			    var t2 = new List<float>(times.Count);
+			    var t2 = new List<ulong>(times.Count);
 			    var v2 = new List<object>(values.Count);
 			    
 			    t2.Add(times[0]);

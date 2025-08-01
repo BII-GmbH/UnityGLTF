@@ -48,6 +48,7 @@ namespace UnityGLTF.Timeline
 		private readonly bool recordBlendShapes;
 		private readonly bool recordAnimationPointer;
 		
+		
 		internal GLTFRecorder(
 			Transform root,
 			Func<Transform, bool> recordTransformInWorldSpace,
@@ -85,21 +86,22 @@ namespace UnityGLTF.Timeline
 		
 		private readonly AnimationSamplers animationSamplers;
 
-		private float startTime;
-		private float lastRecordedTime;
+		private TimeSpan animationSampleStepTime;
+		private TimeSpan animationStartOffset;
+		private ulong lastRecordedSampleNumber;
 		private bool hasRecording;
 		private bool isRecording;
 		
 		public bool HasRecording => hasRecording;
 		public bool IsRecording => isRecording;
 
-		
+
 		/// <summary>
 		/// Application Time when the most recent sample was recorded
 		/// </summary>;
-		public float LastRecordedTime => lastRecordedTime;
+		public TimeSpan LastRecordedTime => sampleIndexToTimeOffset(lastRecordedSampleNumber);
 		
-		public float RecordingStartTime => startTime;
+		public TimeSpan RecordingStartTime => animationStartOffset;
 		
 
 		public string AnimationName = "Recording";
@@ -137,13 +139,13 @@ namespace UnityGLTF.Timeline
 
 		public class PostAnimationData
 		{
-			public float[] Times;
+			public ulong[] Times;
 			public object[] Values;
 			
 			public Object AnimatedObject { get; }
 			public string PropertyName { get; }
 			
-			internal PostAnimationData(Object animatedObject, string propertyName, float[] times, object[] values) {
+			internal PostAnimationData(Object animatedObject, string propertyName, ulong[] times, object[] values) {
 				this.AnimatedObject = animatedObject;
 				this.PropertyName = propertyName;
 				this.Times = times;
@@ -151,10 +153,10 @@ namespace UnityGLTF.Timeline
 			}
 		}
 		
-		public void StartRecording(float time, bool includeInactiveTransforms = true)
-		{
-			startTime = time;
-			lastRecordedTime = 0;
+		public void StartRecording(TimeSpan fixedAnimationSampleRate, TimeSpan animationStartOffset, bool includeInactiveTransforms = true) {
+			animationSampleStepTime = fixedAnimationSampleRate;
+			this.animationStartOffset = animationStartOffset;
+			lastRecordedSampleNumber = 0;
 			
 			root.GetComponentsInChildren<Transform>(includeInactiveTransforms, transformCache);
 			recordingAnimatedTransforms.Clear();
@@ -162,7 +164,7 @@ namespace UnityGLTF.Timeline
 			foreach (var tr in transformCache)
 			{
 				if (!allowRecordingTransform(tr)) continue;
-				recordingAnimatedTransforms.Add(tr, new AnimationData(animationSamplers, tr, lastRecordedTime));
+				recordingAnimatedTransforms.Add(tr, new AnimationData(animationSamplers, tr, lastRecordedSampleNumber));
 			}
 			transformCache.Clear();
 
@@ -177,12 +179,12 @@ namespace UnityGLTF.Timeline
 		/// </summary>
 		/// <param name="time">time to record at</param>
 		/// <exception cref="InvalidOperationException">thrown if the recorder is not recording when this is called</exception>
-		public void UpdateRecording(float time)
+		public void UpdateRecording(TimeSpan currentTime)
 		{
 			Profiler.BeginSample("Get Transforms");
 			root.GetComponentsInChildren(true, transformCache);
 			Profiler.EndSample();
-			updateRecording(time, transformCache);
+			updateRecording(currentTime, transformCache);
 			Profiler.BeginSample("Clear Transform Cache");
 			transformCache.Clear();
 			Profiler.EndSample();
@@ -195,7 +197,7 @@ namespace UnityGLTF.Timeline
 		/// <param name="transforms">the transforms for which to update the recorded state</param>
 		/// <exception cref="InvalidOperationException">thrown if the recorder is not recording when this is called or if any of the transforms passed
 		/// in is not parented directly or indirectly to the root</exception>
-		public void UpdateRecordingFor(float time, IReadOnlyCollection<Transform> transforms) {
+		public void UpdateRecordingFor(TimeSpan currentTime, IReadOnlyCollection<Transform> transforms) {
 			Profiler.BeginSample("Check transforms are parented properly");
 			foreach (var transform in transforms) {
 				if (transform && !transform.IsChildOf(root))
@@ -205,22 +207,26 @@ namespace UnityGLTF.Timeline
 			}
 			Profiler.EndSample();
 
-			updateRecording(time, transforms);
+			updateRecording(currentTime, transforms);
 		}
-
-		private void updateRecording(float time, IReadOnlyCollection<Transform> transforms) {
+		
+		private void updateRecording(TimeSpan currentTime, IReadOnlyCollection<Transform> transforms) {
 			if (!isRecording)
 			{
 				throw new InvalidOperationException($"{nameof(GLTFRecorder)} isn't recording, but {nameof(UpdateRecording)} was called. This is invalid.");
 			}
 
-			if (time <= lastRecordedTime)
+			if(currentTime < animationStartOffset)
+				throw new InvalidOperationException($"Cannot sample the animation at {currentTime} because it is before the animation starts at {animationStartOffset}");
+			
+			var sampleIndex = (ulong) Math.Floor((currentTime - RecordingStartTime) / animationSampleStepTime);
+			
+			if (sampleIndex <= lastRecordedSampleNumber)
 			{
-				Debug.LogWarning($"Can't record backwards in time, please avoid this (Tried to record at {time}, but it is already {lastRecordedTime}).");
+				Debug.LogWarning($"Can't record backwards in time, please avoid this (Tried to record at {sampleIndex}, but it is already {lastRecordedSampleNumber}).");
 				return;
 			}
-
-			var timeSinceStart = time - startTime;
+			
 			foreach (var tr in transforms) {
 				using var _ = updateRecordingSingleIterationMarker.Auto();
 				
@@ -231,13 +237,15 @@ namespace UnityGLTF.Timeline
 					Debug.LogWarning("Found previously unknown transform during recording.");
 					// because lastRecordedTime > 0, this will insert an "empty" frame with scale=0,0,0 at time = 0
 					// because this object just appeared in this frame
-					var emptyData = new AnimationData(animationSamplers, tr, lastRecordedTime);
+					var emptyData = new AnimationData(animationSamplers, tr, lastRecordedSampleNumber);
 					recordingAnimatedTransforms.Add(tr, emptyData);
 					Profiler.EndSample();
-				} else { recordingAnimatedTransforms[tr].Update(timeSinceStart); }
+				} else { recordingAnimatedTransforms[tr].Update(sampleIndex); }
 			}
-			lastRecordedTime = time;
+			lastRecordedSampleNumber = sampleIndex;
 		}
+		
+		private TimeSpan sampleIndexToTimeOffset(ulong ind) => animationStartOffset + animationSampleStepTime * ind;
 		
 		internal void endRecording(out Dictionary<Transform, AnimationData>? param)
 		{
@@ -322,7 +330,7 @@ namespace UnityGLTF.Timeline
 
 			GLTFAnimation anim = new GLTFAnimation();
 			anim.Name = AnimationName;
-
+			
 			CollectAndProcessAnimation(exporter, anim, true, out Bounds translationBounds);
 
 			if (anim.Channels.Count > 0 && anim.Samplers.Count > 0)
@@ -378,7 +386,8 @@ namespace UnityGLTF.Timeline
 							continue;
 					}
 					
-					var (interpolation, times, scales) = visibilityTrackToScaleTrack(visibilityTrack);
+					var (interpolation, sampleIds, scales) = visibilityTrackToScaleTrack(visibilityTrack);
+					var times = sampleIds.Select(sid => (float) sampleIndexToTimeOffset(sid).TotalSeconds).ToArray();
 					gltfSceneExporter.AddAnimationData(kvp.Key, kvp.Key, "scale", anim, interpolation, times, scales.Cast<object>().ToArray());
 				}
 			}
@@ -402,7 +411,7 @@ namespace UnityGLTF.Timeline
 			if(animatedObject == null) return;
 
 			var trackName = track.PropertyName;
-			var trackTimes = track.Times;
+			var trackSampleNumbers = track.Times;
 			var trackValues = track.ValuesUntyped;
 					
 			// AnimationData always has a visibility track, and if there is also a scale track, merge them
@@ -411,10 +420,10 @@ namespace UnityGLTF.Timeline
 				// So to simulate support for that, merge the visibility track with the scale track
 				// forcing the scale to (0,0,0) whenever the model is invisible
 				foundScaleTrack = true;
-				var result = mergeVisibilityAndScaleTracks(visibilityTrack, scaleTrack);
+				var result = mergeVisibilityAndScaleTracks(visibilityTrack, scaleTrack, animationSampleStepTime);
 				if (result == null) return;
 				
-				trackTimes = result!.Value.times;
+				trackSampleNumbers = result!.Value.times;
 				trackValues = result!.Value.mergedScales.Cast<object>().ToArray();
 			}
 
@@ -423,9 +432,10 @@ namespace UnityGLTF.Timeline
 			if (trackValues.Length <= 2 && 
 				trackValues.All(v => track.InitialValueUntyped?.Equals(v) ?? false))
 				return;
+
 			
 			OnBeforeAddAnimationData?.Invoke(
-				new PostAnimationData(animatedObject, trackName, trackTimes, trackValues)
+				new PostAnimationData(animatedObject, trackName, trackSampleNumbers, trackValues)
 			);
 
 			if (calculateTranslationBounds && track.PropertyName == "translation") {
@@ -444,14 +454,15 @@ namespace UnityGLTF.Timeline
 				}
 			}
 			
-			var (filteredTimes, filteredValues) = AnimationFilteringUtils.RemoveUnneededKeyframes(trackTimes, trackValues);
-			(trackTimes, trackValues) = (filteredTimes.ToArray(), filteredValues.ToArray());
+			// var (filteredTimes, filteredValues) = AnimationFilteringUtils.RemoveUnneededKeyframes(trackSampleNumbers, trackValues);
+			// (trackSampleNumbers, trackValues) = (filteredTimes.ToArray(), filteredValues.ToArray());
 			
+			var trackTimes = trackSampleNumbers.Select(sid => (float) sampleIndexToTimeOffset(sid).TotalSeconds).ToArray();
 			gltfSceneExporter.AddAnimationData(trackTargetTransform, track.AnimatedObjectUntyped, track.PropertyName, animation, track.InterpolationType, trackTimes, trackValues);
 		}
 
 		/// use this only if you only have a visibility track, no scale, otherwise use <see cref="mergeVisibilityAndScaleTracks"/> instead to merge the two 
-		internal static (AnimationInterpolationType interpolation, float[] times, Vector3[] mergedScales)
+		internal static (AnimationInterpolationType interpolation, ulong[] times, Vector3[] mergedScales)
 			visibilityTrackToScaleTrack(AnimationTrack<GameObject, bool> visibilityTrack) {
 			var visTimes = visibilityTrack.Times;
 			var visValues = visibilityTrack.Values;
@@ -459,10 +470,11 @@ namespace UnityGLTF.Timeline
 			return (AnimationInterpolationType.STEP, visTimes, visScaleValues);
 		}
 
-		internal static (AnimationInterpolationType interpolation, float[] times, Vector3[] mergedScales)?
+		internal static (AnimationInterpolationType interpolation, ulong[] times, Vector3[] mergedScales)?
 			mergeVisibilityAndScaleTracks(
 				AnimationTrack<GameObject, bool>? visibilityTrack,
-				AnimationTrack<Transform, Vector3>? scaleTrack
+				AnimationTrack<Transform, Vector3>? scaleTrack,
+				TimeSpan animationSampleStepTime
 			) {
 			if (visibilityTrack == null && scaleTrack == null) return null;
 			if (visibilityTrack == null) return (scaleTrack!.InterpolationType, scaleTrack.Times, scaleTrack.Values);
@@ -471,6 +483,7 @@ namespace UnityGLTF.Timeline
 			// both tracks are present, need to merge, but visibility always takes precedence
 
 			var currentState = new MergeVisibilityAndScaleTrackMerger(
+				animationSampleStepTime,
 				visibilityTrack.Times,
 				visibilityTrack.Values,
 				scaleTrack.Times,

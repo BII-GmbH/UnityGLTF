@@ -16,14 +16,14 @@ namespace UnityGLTF.Timeline
      
         AnimationInterpolationType InterpolationType { get; }
         
-        float[] Times { get; }
+        ulong[] Times { get; }
         
         object[] ValuesUntyped { get; }
         
-        float? LastTime { get; }
+        ulong? LastTime { get; }
         object? LastValueUntyped { get; }
         
-        void SampleIfChanged(float time);
+        void SampleIfChanged(ulong sampleIdx);
         
         // can be used to filter useless animation tracks after sampling
         // (tracks that only have 1 or two recorded samples that do not differ from the initial value)
@@ -49,7 +49,7 @@ namespace UnityGLTF.Timeline
     
     internal abstract class BaseAnimationTrack<TObject, TData> : AnimationTrack<TObject, TData> where TObject : Object
     {
-        private readonly List<(float Time, TData Value)> samples;
+        private readonly List<(ulong SampleIndex, TData Value)> samples;
         
         private readonly AnimationData animationData;
         private readonly AnimationSampler<TObject, TData> sampler;
@@ -62,21 +62,21 @@ namespace UnityGLTF.Timeline
 
         public AnimationInterpolationType InterpolationType => sampler.InterpolationType;
 
-        public float[] Times => samples.Select(t => t.Time).ToArray();
+        public ulong[] Times => samples.Select(t => t.SampleIndex).ToArray();
         public TData[] Values => samples.Select(t => t.Value).ToArray();
         
-        public float? LastTime => samples.Count > 0 ? samples[^1].Time : null; 
+        public ulong? LastTime => samples.Count > 0 ? samples[^1].SampleIndex : null; 
         public TData? LastValue => samples.Count > 0 ? samples[^1].Value : default; 
         public bool HasLastValue => samples.Count > 0;
         
         private TData? secondToLastValue => samples.Count > 1 ? samples[^2].Value : default;
         private bool hasSecondToLastValue => samples.Count > 1;
         
-        protected BaseAnimationTrack(AnimationData tr, AnimationSampler<TObject, TData> plan, float time, IEqualityComparer<TData> dataComparer, Func<TData?, TData?>? overrideInitialValueFunc = null) {
+        protected BaseAnimationTrack(AnimationData tr, AnimationSampler<TObject, TData> plan, ulong time, IEqualityComparer<TData> dataComparer, Func<TData?, TData?>? overrideInitialValueFunc = null) {
             this.animationData = tr;
             this.sampler = plan;
             this.dataComparer = dataComparer;
-            samples = new List<(float, TData)>();
+            samples = new List<(ulong, TData)>();
             if(overrideInitialValueFunc != null)
                 recordSampleIfChanged(time, overrideInitialValueFunc(sampler.sample(animationData)));
             else 
@@ -85,7 +85,7 @@ namespace UnityGLTF.Timeline
             recordSampleIfChangedMarker = new ProfilerMarker($"BaseAnimationTrack<{typeof(TObject).Name}, {typeof(TData).Name}> - recordSampleIfChanged"); 
         }
         
-        public void SampleIfChanged(float time) => recordSampleIfChanged(time, sampler.sample(animationData));
+        public void SampleIfChanged(ulong sampleIndex) => recordSampleIfChanged(sampleIndex, sampler.sample(animationData));
 
         private readonly ProfilerMarker recordSampleIfChangedMarker;
         private readonly ProfilerMarker unityObjectCheck = new ProfilerMarker("unityObjectCheck");
@@ -94,7 +94,7 @@ namespace UnityGLTF.Timeline
         private readonly ProfilerMarker removeLastSample = new ProfilerMarker("removeLastSample");
         private readonly ProfilerMarker insertData = new ProfilerMarker("insert Data");
         
-        protected void recordSampleIfChanged(float time, TData? value) {
+        protected void recordSampleIfChanged(ulong sampleIndex, TData? value) {
             using var _ = recordSampleIfChangedMarker.Auto();
             {
                 using var __ = unityObjectCheck.Auto();
@@ -115,9 +115,8 @@ namespace UnityGLTF.Timeline
             // If you are wondering, why this can even happen since duplicate timestamps are already checked for in the GLTFRecorder:
             // Yeah i am not sure why either, but it definitely happens!
             // Finding this bug cost me 3 days of my life, please don't remove this check.
-            if (time <= LastTime) {
-                Debug.LogWarning($"Duplicate timestamp {time} (Current Time: {LastTime}) with values {LastValue} (last sample) and {value} (current sample) in animation track");
-                return;
+            if (sampleIndex <= LastTime) {
+                throw new InvalidOperationException($"Duplicate timestamp {sampleIndex} (Current Time: {LastTime}) with values {LastValue} (last sample) and {value} (current sample) in animation track");
             }
             // As a memory optimization we want to be able to skip identical samples.
             // But, we cannot always skip samples when they are identical to the previous one - otherwise cases like this break:
@@ -139,28 +138,28 @@ namespace UnityGLTF.Timeline
             // if the *last two* samples were identical to the current sample.
             // If that is the case we can remove/overwrite the middle sample with the new value.
             
-            if (HasLastValue && hasSecondToLastValue) {
-                var lastValue = LastValue!;
-                var secondToLast = secondToLastValue!;
-                
-                using var __ = lastSampleCheckEquality.Auto(); 
-                if(dataComparer.Equals(lastValue, secondToLast) &&
-                    dataComparer.Equals(lastValue, value)) {
-                    using var ___ = removeLastSample.Auto();
-                    samples.RemoveAt(samples.Count - 1);
-                }
-            }
+            // if (HasLastValue && hasSecondToLastValue) {
+            //     var lastValue = LastValue!;
+            //     var secondToLast = secondToLastValue!;
+            //     
+            //     using var __ = lastSampleCheckEquality.Auto(); 
+            //     if(dataComparer.Equals(lastValue, secondToLast) &&
+            //         dataComparer.Equals(lastValue, value)) {
+            //         using var ___ = removeLastSample.Auto();
+            //         samples.RemoveAt(samples.Count - 1);
+            //     }
+            // }
 
             
             insertData.Begin();
-            samples.Add((time, value));
+            samples.Add((sampleIndex, value));
             insertData.End();
         }
     }
 
     internal sealed class AnimationTrackImpl<TObject, TData> : BaseAnimationTrack<TObject, TData> where TObject : Object
     {
-        public AnimationTrackImpl(AnimationData tr, AnimationSampler<TObject, TData> plan, float time, IEqualityComparer<TData> dataComparer) : base(tr, plan, time, dataComparer) { }
+        public AnimationTrackImpl(AnimationData tr, AnimationSampler<TObject, TData> plan, ulong time, IEqualityComparer<TData> dataComparer) : base(tr, plan, time, dataComparer) { }
     }
 
     
