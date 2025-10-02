@@ -55,7 +55,7 @@ namespace UnityGLTF.Timeline
                 if (visTime == scaleTime) {
                     // safety check to ensure that a sample a time 0 is set correctly
                     if (visTime <= 0) {
-                        yield return (visTime, visible ? (lastScale ?? scale) : Vector3.zero);
+                        yield return (0, visible ? (lastScale ?? scale) : Vector3.zero);
                     }
                     else {
                         foreach (var sample in handleBothSampledAtSameTime(
@@ -75,7 +75,7 @@ namespace UnityGLTF.Timeline
                 else if (visTime < scaleTime) {
                     // safety check to ensure that a sample a time 0 is set correctly
                     if(visTime <= 0) {
-                        yield return (visTime, visible ? (lastScale ?? scale) : Vector3.zero);
+                        yield return (0, visible ? (lastScale ?? scale) : Vector3.zero);
                     }
                     else {
                         foreach (var (time, value) in mergedSamplesForNextVisibilityChange(
@@ -155,7 +155,7 @@ namespace UnityGLTF.Timeline
                         yield return (insertedSample, scale);
                         yield return (timeSample, Vector3.zero);
                     } else {
-                        yield return (time, Vector3.zero);
+                        yield return (0, Vector3.zero);
                     }
                         
                     break;
@@ -175,7 +175,7 @@ namespace UnityGLTF.Timeline
                         yield return (insertedSample, Vector3.zero);
                         yield return (timeSample, scale);
                     } else {
-                        yield return (time, scale);
+                        yield return (0, scale);
                     }
 
                     break;

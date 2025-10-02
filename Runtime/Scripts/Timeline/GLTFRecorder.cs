@@ -234,7 +234,7 @@ namespace UnityGLTF.Timeline
 				if (!recordingAnimatedTransforms.ContainsKey(tr))
 				{
 					Profiler.BeginSample("Update Recording - Add New Transform");
-					Debug.LogWarning("Found previously unknown transform during recording.");
+					Debug.LogWarning($"Found previously unknown transform during recording: {tr}");
 					// because lastRecordedTime > 0, this will insert an "empty" frame with scale=0,0,0 at time = 0
 					// because this object just appeared in this frame
 					var emptyData = new AnimationData(animationSamplers, tr, lastRecordedSampleNumber);
@@ -420,7 +420,7 @@ namespace UnityGLTF.Timeline
 				// So to simulate support for that, merge the visibility track with the scale track
 				// forcing the scale to (0,0,0) whenever the model is invisible
 				foundScaleTrack = true;
-				var result = mergeVisibilityAndScaleTracks(visibilityTrack, scaleTrack, animationSampleStepTime);
+				var result = mergeVisibilityAndScaleTracks(visibilityTrack, null, animationSampleStepTime);
 				if (result == null) return;
 				
 				trackSampleNumbers = result!.Value.times;
