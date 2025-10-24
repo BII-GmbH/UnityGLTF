@@ -420,7 +420,7 @@ namespace UnityGLTF.Timeline
 				// So to simulate support for that, merge the visibility track with the scale track
 				// forcing the scale to (0,0,0) whenever the model is invisible
 				foundScaleTrack = true;
-				var result = mergeVisibilityAndScaleTracks(visibilityTrack, null, animationSampleStepTime);
+				var result = mergeVisibilityAndScaleTracks(visibilityTrack, scaleTrack, animationSampleStepTime);
 				if (result == null) return;
 				
 				trackSampleNumbers = result!.Value.times;
@@ -454,8 +454,8 @@ namespace UnityGLTF.Timeline
 				}
 			}
 			
-			// var (filteredTimes, filteredValues) = AnimationFilteringUtils.RemoveUnneededKeyframes(trackSampleNumbers, trackValues);
-			// (trackSampleNumbers, trackValues) = (filteredTimes.ToArray(), filteredValues.ToArray());
+			var (filteredTimes, filteredValues) = AnimationFilteringUtils.RemoveUnneededKeyframes(trackSampleNumbers, trackValues);
+			(trackSampleNumbers, trackValues) = (filteredTimes.ToArray(), filteredValues.ToArray());
 			
 			var trackTimes = trackSampleNumbers.Select(sid => (float) sampleIndexToTimeOffset(sid).TotalSeconds).ToArray();
 			gltfSceneExporter.AddAnimationData(trackTargetTransform, track.AnimatedObjectUntyped, track.PropertyName, animation, track.InterpolationType, trackTimes, trackValues);
@@ -483,7 +483,6 @@ namespace UnityGLTF.Timeline
 			// both tracks are present, need to merge, but visibility always takes precedence
 
 			var currentState = new MergeVisibilityAndScaleTrackMerger(
-				animationSampleStepTime,
 				visibilityTrack.Times,
 				visibilityTrack.Values,
 				scaleTrack.Times,

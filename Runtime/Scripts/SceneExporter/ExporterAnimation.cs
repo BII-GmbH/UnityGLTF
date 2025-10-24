@@ -906,7 +906,6 @@ namespace UnityGLTF
 					// Initialize data
 					// Bake and populate animation data
 					float[] times = null;
-
 					// arbitrary properties require the KHR_animation_pointer extension
 					bool sampledAnimationData = false;
 					if (UseAnimationPointer && curve.propertyCurves != null && curve.propertyCurves.Count > 0)
@@ -1442,10 +1441,8 @@ namespace UnityGLTF
 				}
 			}
 
-			throw new NotImplementedException();
-
-			// var (filteredTimes, filteredValue) = AnimationFilteringUtils.RemoveUnneededKeyframes(_times, _values);
-			// (times, values) = (filteredTimes.ToArray(), filteredValue.ToArray());
+			var (filteredTimes, filteredValue) = AnimationFilteringUtils.RemoveUnneededKeyframes<float>(_times, _values);
+			(times, values) = (filteredTimes.ToArray(), filteredValue.ToArray());
 
 			return true;
 		}

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.Contracts;
 using System.Runtime.CompilerServices;
 using UnityEngine;
 
@@ -39,13 +38,21 @@ namespace UnityGLTF.Timeline
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void incrementScaleIndex() => scaleIndex++;
 
-        private static (ulong InsertedSample, ulong NormalSample) chooseSampleIndicesForInserted(ulong insertBeforeThisSample, ulong lastSampled) =>
-            
-            // inserting the additional sample at the previous sample index might not work (if there is a sample at that time already)
-            lastSampled < insertBeforeThisSample - 1 ? (insertBeforeThisSample - 1, insertBeforeThisSample) : (insertBeforeThisSample, insertBeforeThisSample + 1);
-        
+        private static (ulong InsertedSample, ulong NormalSample) chooseSampleIndicesForInserted(ulong insertBeforeThisSample, ulong lastSampled) {
+            return (insertBeforeThisSample, insertBeforeThisSample + 1);
+            // var preferredTime = insertBeforeThisSample - 1;
+            //
+            // // inserting the additional sample at the previous sample index might not work (if there is a sample at that time already)
+            // return lastSampled < preferredTime
+            //     ? (insertBeforeThisSample - 1, insertBeforeThisSample)
+            //     : (insertBeforeThisSample, insertBeforeThisSample + 1);
+        }
+
         public IEnumerable<(ulong Time, Vector3 mergedScale)> Merge() {
             var lastRecordedTime = 0ul;
+            
+            var result = new List<(ulong Time, Vector3 mergedScale)>();
+            
             while (visIndex < inputVisibilityTimes.Length && scaleIndex < inputScaleTimes.Length) {
                 var visTime = currentVisibilityTime;
                 var scaleTime = currentScaleTime;
@@ -53,32 +60,37 @@ namespace UnityGLTF.Timeline
                 var scale = currentScale;
 
                 if (visTime == scaleTime) {
+                    var emittedExtraSample = false;
                     // safety check to ensure that a sample a time 0 is set correctly
-                    if (visTime <= 0) {
-                        yield return (0, visible ? (lastScale ?? scale) : Vector3.zero);
-                    }
-                    else {
-                        foreach (var sample in handleBothSampledAtSameTime(
+                    if (visTime == 0) {
+                        // this is also a scale sample so we should always use the current scale value if visible
+                        result.Add((0, visible ? scale : Vector3.zero));
+                    } else {
+                        handleBothSampledAtSameTime(
+                            result,
                             visTime,
                             visible,
                             scale,
                             lastVisible ?? visible,
-                            lastRecordedTime
-                        ))
-                            yield return sample;
+                            lastRecordedTime,
+                            out emittedExtraSample
+                        );
                     }
 
-                    lastRecordedTime = visTime;
+                    lastRecordedTime = emittedExtraSample ? visTime + 1 : visTime;
                     incrementVisIndex();
                     incrementScaleIndex();
                 }
                 else if (visTime < scaleTime) {
                     // safety check to ensure that a sample a time 0 is set correctly
-                    if(visTime <= 0) {
-                        yield return (0, visible ? (lastScale ?? scale) : Vector3.zero);
+                    var emittedExtraSample = false;
+
+                    if(visTime == 0) {
+                        result.Add((0, visible ? (lastScale ?? scale) : Vector3.zero));
                     }
                     else {
-                        foreach (var (time, value) in mergedSamplesForNextVisibilityChange(
+                        mergedSamplesForNextVisibilityChange(
+                            result,
                             visTime,
                             currentVisibility,
                             scaleTime,
@@ -91,17 +103,43 @@ namespace UnityGLTF.Timeline
                             // case should never actually happen in reality since creating
                             // a new animation data object samples all tracks at the time
                             // it is created!
-                            lastScale ?? scale
-                        )) { yield return (time, value); }
+                            lastScale ?? scale,
+                            lastRecordedTime,
+                            out emittedExtraSample
+                        );
                     }
 
-                    lastRecordedTime = visTime;
+                    lastRecordedTime = emittedExtraSample ? visTime + 1 : visTime;
                     incrementVisIndex();
                 } else if (scaleTime < visTime) {
                     // the next scale change occurs sooner than the next visibility change
                     // However, if the model is currently invisible, we simply don't care
-                    if (lastVisible ?? visible) 
-                        yield return (scaleTime, scale);
+                    if (lastVisible ?? visible) {
+                        // special edge case: the last sample was a visibility change that emitted an
+                        // additional sample that now conflicts with our own sample
+                        // since it cannot know the correct scale value ahead of time,
+                        // so update the last emitted value instead of emitting a new one
+                        if (lastRecordedTime == scaleTime && scaleTime > 0) {
+                            result[^1] = (scaleTime, scale);
+                        }
+                        else {
+                            result.Add((scaleTime, scale));
+                        }
+                    }
+                    else {
+                        // both are invisible, use 0. 
+                        // We could also skip this sample, but for consistency we keep it.
+                        
+                        // special edge case: the last sample was a visibility change that emitted an
+                        // additional sample that now conflicts with our own sample
+                        // since it cannot know the correct scale value ahead of time,
+                        // so update the last emitted value instead of emitting a new one
+                        if (lastRecordedTime == scaleTime && scaleTime > 0) {
+                            result[^1] = (scaleTime, Vector3.zero);
+                        } else {
+                            result.Add((scaleTime, Vector3.zero));
+                        }
+                    }
 
                     lastRecordedTime = scaleTime;
                     incrementScaleIndex();
@@ -116,68 +154,87 @@ namespace UnityGLTF.Timeline
                     // if the value flipped, this needs two samples - one for
                     // the previous value and then another one at the new value
                     var (insertedSample, visSample) = chooseSampleIndicesForInserted(visTime, lastVisibleTime ?? lastRecordedTime);
-                    yield return (insertedSample, (lastVisible ?? visible) ? (lastScale ?? Vector3.one) : Vector3.zero);
-                    yield return (visSample, visible ? (lastScale ?? Vector3.one) : Vector3.zero);
+                    result.Add((insertedSample, (lastVisible ?? visible) ? (lastScale ?? Vector3.one) : Vector3.zero));
+                    result.Add((visSample, visible ? (lastScale ?? Vector3.one) : Vector3.zero));
                 } else {
                     // always record one of them, otherwise the first or last values may be lost
-                    yield return (visTime, visible ? (lastScale ?? Vector3.one) : Vector3.zero);
+                    result.Add((visTime, visible ? (lastScale ?? Vector3.one) : Vector3.zero));
                 }
                 incrementVisIndex();
             }
 
             // process remaining scale changes - this will only enter if vis end was reached first -
-            // if last visibility was invisible then there is no point in adding these
-            while ((lastVisible ?? currentVisibility) && scaleIndex < inputScaleTimes.Length) {
+            // if last visibility was invisible then there is no point in adding these.
+            // However, as the other branches of this class do not skip unnecessary samples, we also do not here
+            //  &&
+            while (scaleIndex < inputScaleTimes.Length) {
                 var scaleTime = inputScaleTimes[scaleIndex];
-                var scale = inputScales[scaleIndex];
-                yield return (scaleTime, scale);
+                var scale = (lastVisible ?? currentVisibility) ? inputScales[scaleIndex] : Vector3.zero;
+                result.Add((scaleTime, scale));
                 incrementScaleIndex();
             }
+            
+            return result;
         }
         
-        [Pure]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static IEnumerable<(ulong Time, Vector3 Scale)> handleBothSampledAtSameTime(
+        internal static void handleBothSampledAtSameTime(
+            List<(ulong Time, Vector3 Scale)> resultList,
             ulong time,
             bool visibility,
             Vector3 scale,
             bool lastVisible,
-            ulong lastTime
+            ulong lastTime,
+            out bool emittedExtraSample 
         ) {
+            emittedExtraSample = false;
             // both samples have the same timestamp
-            // choose output value depending on visibility, but use scale value if visible
+            // choose output value depending on visibility; use scale value if visible
             switch (lastVisible, visibility) {
                 case (true, false):
                     // visibility changed from visible to invisible
                     // use last scale value
                     if (time > 0) {
+                        emittedExtraSample = true;
                         var (insertedSample, timeSample) = chooseSampleIndicesForInserted(time, lastTime);
-                        yield return (insertedSample, scale);
-                        yield return (timeSample, Vector3.zero);
+                        resultList.Add( (insertedSample, scale));
+                        resultList.Add( (timeSample, Vector3.zero));
                     } else {
-                        yield return (0, Vector3.zero);
+                        resultList.Add( (0, Vector3.zero));
                     }
                         
                     break;
                 case (true, true):
                     // both are visible, use scale value
-                    yield return (time, scale);
+                    // special edge case: the last sample was a visibility change that emitted an
+                    // additional sample that now conflicts with our own sample
+                    // since it cannot know the correct scale value ahead of time,
+                    // so update the last emitted value instead of emitting a new one
+                    if (lastTime == time && time > 0) {
+                        resultList[^1] = (time, scale);
+                    } else {
+                        resultList.Add((time, scale));
+                    }
                     break;
                 case (false, false):
+                    // both are invisible, use 0. 
+                    // We could also skip this sample, but for consistency we keep it
+                    // as there is already loads of logic that skips samples that are not necessary.
+                    // This would just be another source of potential errors
+                    resultList.Add( (time, Vector3.zero));
                     break;
                 case (false, true):
                     // visibility changed from invisible to visible
                     // use scale value
                     if (time > 0) {
-                        var (insertedSample, timeSample) = chooseSampleIndicesForInserted(time, lastTime);
+                        emittedExtraSample = true;
+                        var (insertedInvisibleSample, visibleSample) = chooseSampleIndicesForInserted(time, lastTime);
                         
-                        
-                        yield return (insertedSample, Vector3.zero);
-                        yield return (timeSample, scale);
+                        resultList.Add( (insertedInvisibleSample, Vector3.zero));
+                        resultList.Add( (visibleSample, scale));
                     } else {
-                        yield return (0, scale);
+                        resultList.Add( (0, scale));
                     }
-
                     break;
             }
         }
@@ -185,58 +242,77 @@ namespace UnityGLTF.Timeline
         /// Finds the appropriate samples for when a visibility change occurs before the next scale change
         /// <param name="visTime">time at which the visibility changes. Must be > 0</param>
         /// <param name="visible">new visibility</param>
-        /// <param name="scaleTime">time at which the next scale change occurs. Expects scaleTime > visTime! This is not validated though. if this precondition is violated, the results will not be correct</param>
-        /// <param name="scale">the scale that is set at scaleTime</param>
+        /// <param name="nextScaleTime">time at which the next scale change occurs. Expects scaleTime > visTime! This is not validated though. if this precondition is violated, the results will not be correct</param>
+        /// <param name="nextScale">the scale that is set at scaleTime</param>
         /// <param name="lastVisibleTime">the time of the last visibility change</param>
         /// <param name="lastVisible">the last visibility state</param>
         /// <param name="lastScaleTime">the time of the last scale change</param>
         /// <param name="lastScale">the last scale</param>
         /// <returns>an enumerable of merged samples that correctly represent this relation of samples for visibility and scale</returns>
-        [Pure]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static IEnumerable<(ulong Time, Vector3 Scale)> mergedSamplesForNextVisibilityChange(
+        internal static void mergedSamplesForNextVisibilityChange(
+            List<(ulong Time, Vector3 Scale)> resultList,
             ulong visTime,
             bool visible,
-            ulong scaleTime,
-            Vector3 scale,
+            ulong nextScaleTime,
+            Vector3 nextScale,
             ulong lastVisibleTime,
             bool lastVisible,
             ulong lastScaleTime,
-            Vector3 lastScale
+            Vector3 lastScale,
+            ulong lastRecordedTime,
+            out bool emittedExtraSample 
         ) {
             // the next visibility change occurs sooner than the next scale change
             // record two samples:
             // 1) sample of the last visibility state _right_ before the change occurs to prevent linear interpolation from breaking the animation
             // 2) Sample of the scale using visibility state and (if visible) the scale
             // value interpolated between the last and next sample
-
+            
             // both samples have the same timestamp
             // choose output value depending on visibility, but use scale value if visible
             switch (lastVisible, visible) {
                 case (true, false): {
                     // visibility changed from visible to invisible
                     // use last scale value
-
+                    emittedExtraSample = true;
                     var (insertedTime, sampleTime) = chooseSampleIndicesForInserted(
                         visTime,
                         lastSampled: Math.Max(lastVisibleTime, lastScaleTime)
                     );
-                    yield return (insertedTime, Vector3.LerpUnclamped(
+                    resultList.Add( (insertedTime, Vector3.LerpUnclamped(
                         lastScale,
-                        scale,
+                        nextScale,
                         // do the math as double for higher precision and reduce to float when necessary
-                        (float)((visTime - lastScaleTime) / (double)(scaleTime - lastScaleTime))
-                    ));
-                    yield return (sampleTime, Vector3.zero);
+                        (float)((visTime - lastScaleTime) / (double)(nextScaleTime - lastScaleTime))
+                    )));
+                    resultList.Add( (sampleTime, Vector3.zero));
                     break;
                 }
                 case (true, true):
+                    emittedExtraSample = false;
+                    // This code does not skip unnecessary samples, other logic does that, so still emit the sample
+                    
+                    // both are visible, use scale value
+                    // special edge case: the last sample was a visibility change that emitted an
+                    // additional sample that now conflicts with our own sample
+                    // since it cannot know the correct scale value ahead of time,
+                    // so update the last emitted value instead of emitting a new one
+                    if (lastRecordedTime == visTime && visTime > 0) {
+                        resultList[^1] = (visTime, lastScale);
+                    } else {
+                        resultList.Add((visTime, lastScale));
+                    }
                     // both are visible, we don't need a sample
                     break;
                 case (_, false):
+                    emittedExtraSample = false;
+                    // This code does not skip unnecessary samples, other logic does that, so still emit the sample
+                    resultList.Add( (visTime, Vector3.zero));
                     // both are visible, we don't need a sample
                     break;
                 case (_, true): {
+                    emittedExtraSample = true;
                     // visibility changed from invisible to visible
                     // use scale value
                     var (insertedTime, sampleTime) = chooseSampleIndicesForInserted(
@@ -244,20 +320,19 @@ namespace UnityGLTF.Timeline
                         lastSampled: Math.Max(lastVisibleTime, lastScaleTime)
                     );
 
-                    yield return (insertedTime, Vector3.zero);
-                    yield return (sampleTime, Vector3.LerpUnclamped(
+                    resultList.Add( (insertedTime, Vector3.zero));
+                    resultList.Add( (sampleTime, Vector3.LerpUnclamped(
                         lastScale,
-                        scale,
+                        nextScale,
                         // do the math as double for higher precision and reduce to float when necessary
-                        (float)((visTime - lastScaleTime) / (double)(scaleTime - lastScaleTime))
-                    ));
+                        (float)((visTime - lastScaleTime) / (double)(nextScaleTime - lastScaleTime))
+                    )));
                     break;
                 }
             }
         }
         
         public MergeVisibilityAndScaleTrackMerger(
-            TimeSpan animationStepTime,
             ulong[] inputVisibilityTimes,
             bool[] inputVisibilities,
             ulong[] inputScaleTimes,
@@ -265,8 +340,15 @@ namespace UnityGLTF.Timeline
         ) {
             this.inputVisibilityTimes = inputVisibilityTimes;
             this.inputVisibilities = inputVisibilities;
+            
+            if(inputVisibilityTimes.Length != inputVisibilities.Length)
+                throw new ArgumentException("Visibility times and values must have the same length");
+            
             this.inputScaleTimes = inputScaleTimes;
             this.inputScales = inputScales;
+            
+            if(inputScaleTimes.Length != inputScales.Length)
+                throw new ArgumentException("Scale times and values must have the same length");
         }
     }
 }

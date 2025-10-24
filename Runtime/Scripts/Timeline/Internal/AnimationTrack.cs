@@ -138,17 +138,17 @@ namespace UnityGLTF.Timeline
             // if the *last two* samples were identical to the current sample.
             // If that is the case we can remove/overwrite the middle sample with the new value.
             
-            // if (HasLastValue && hasSecondToLastValue) {
-            //     var lastValue = LastValue!;
-            //     var secondToLast = secondToLastValue!;
-            //     
-            //     using var __ = lastSampleCheckEquality.Auto(); 
-            //     if(dataComparer.Equals(lastValue, secondToLast) &&
-            //         dataComparer.Equals(lastValue, value)) {
-            //         using var ___ = removeLastSample.Auto();
-            //         samples.RemoveAt(samples.Count - 1);
-            //     }
-            // }
+            if (HasLastValue && hasSecondToLastValue) {
+                var lastValue = LastValue!;
+                var secondToLast = secondToLastValue!;
+                
+                using var __ = lastSampleCheckEquality.Auto(); 
+                if(dataComparer.Equals(lastValue, secondToLast) &&
+                    dataComparer.Equals(lastValue, value)) {
+                    using var ___ = removeLastSample.Auto();
+                    samples.RemoveAt(samples.Count - 1);
+                }
+            }
 
             
             insertData.Begin();

@@ -41,7 +41,7 @@ namespace UnityGLTF.Timeline.Samplers
         
         public override string PropertyName => "scale";
 
-        public override AnimationInterpolationType InterpolationType => AnimationInterpolationType.STEP;
+        public override AnimationInterpolationType InterpolationType => AnimationInterpolationType.LINEAR;
 
         public override IEqualityComparer<Vector3> DataComparer => EqualityComparer<Vector3>.Default;
         internal override Transform getTarget(Transform transform) => transform;
