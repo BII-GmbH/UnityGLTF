@@ -38,15 +38,8 @@ namespace UnityGLTF.Timeline
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void incrementScaleIndex() => scaleIndex++;
 
-        private static (ulong InsertedSample, ulong NormalSample) chooseSampleIndicesForInserted(ulong insertBeforeThisSample, ulong lastSampled) {
-            return (insertBeforeThisSample, insertBeforeThisSample + 1);
-            // var preferredTime = insertBeforeThisSample - 1;
-            //
-            // // inserting the additional sample at the previous sample index might not work (if there is a sample at that time already)
-            // return lastSampled < preferredTime
-            //     ? (insertBeforeThisSample - 1, insertBeforeThisSample)
-            //     : (insertBeforeThisSample, insertBeforeThisSample + 1);
-        }
+        private static (ulong InsertedSample, ulong NormalSample) chooseSampleIndicesForInserted(ulong insertBeforeThisSample) => 
+            (insertBeforeThisSample, insertBeforeThisSample + 1);
 
         public IEnumerable<(ulong Time, Vector3 mergedScale)> Merge() {
             var lastRecordedTime = 0ul;
@@ -153,7 +146,7 @@ namespace UnityGLTF.Timeline
                 if (lastVisible != visible) {
                     // if the value flipped, this needs two samples - one for
                     // the previous value and then another one at the new value
-                    var (insertedSample, visSample) = chooseSampleIndicesForInserted(visTime, lastVisibleTime ?? lastRecordedTime);
+                    var (insertedSample, visSample) = chooseSampleIndicesForInserted(visTime);
                     result.Add((insertedSample, (lastVisible ?? visible) ? (lastScale ?? Vector3.one) : Vector3.zero));
                     result.Add((visSample, visible ? (lastScale ?? Vector3.one) : Vector3.zero));
                 } else {
@@ -196,7 +189,7 @@ namespace UnityGLTF.Timeline
                     // use last scale value
                     if (time > 0) {
                         emittedExtraSample = true;
-                        var (insertedSample, timeSample) = chooseSampleIndicesForInserted(time, lastTime);
+                        var (insertedSample, timeSample) = chooseSampleIndicesForInserted(time);
                         resultList.Add( (insertedSample, scale));
                         resultList.Add( (timeSample, Vector3.zero));
                     } else {
@@ -228,7 +221,7 @@ namespace UnityGLTF.Timeline
                     // use scale value
                     if (time > 0) {
                         emittedExtraSample = true;
-                        var (insertedInvisibleSample, visibleSample) = chooseSampleIndicesForInserted(time, lastTime);
+                        var (insertedInvisibleSample, visibleSample) = chooseSampleIndicesForInserted(time);
                         
                         resultList.Add( (insertedInvisibleSample, Vector3.zero));
                         resultList.Add( (visibleSample, scale));
@@ -277,8 +270,7 @@ namespace UnityGLTF.Timeline
                     // use last scale value
                     emittedExtraSample = true;
                     var (insertedTime, sampleTime) = chooseSampleIndicesForInserted(
-                        visTime,
-                        lastSampled: Math.Max(lastVisibleTime, lastScaleTime)
+                        visTime
                     );
                     resultList.Add( (insertedTime, Vector3.LerpUnclamped(
                         lastScale,
@@ -316,8 +308,7 @@ namespace UnityGLTF.Timeline
                     // visibility changed from invisible to visible
                     // use scale value
                     var (insertedTime, sampleTime) = chooseSampleIndicesForInserted(
-                        visTime,
-                        lastSampled: Math.Max(lastVisibleTime, lastScaleTime)
+                        visTime
                     );
 
                     resultList.Add( (insertedTime, Vector3.zero));
