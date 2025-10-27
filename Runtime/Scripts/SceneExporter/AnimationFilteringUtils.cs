@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.Contracts;
 using System.Linq;
 using Unity.Profiling;
 
@@ -24,12 +25,12 @@ namespace UnityGLTF
 	    /// <param name="times">The timestamps of the animations</param>
 	    /// <param name="values">The values of the animation at the timestamp at the corresponding index</param>
 	    /// <returns></returns>
-	    [System.Diagnostics.Contracts.Pure]
-	    public static (IEnumerable<T>, IEnumerable<object>) RemoveUnneededKeyframes<T>(IReadOnlyList<T> times, IReadOnlyList<object> values) {
+	    [Pure]
+	    public static (IEnumerable<ulong>, IEnumerable<object>) RemoveUnneededKeyframes(IReadOnlyList<ulong> times, IReadOnlyList<object> values) {
 		    if (times.Count <= 1) return (times, values);
 
 		    using var _ = removeAnimationUnneededKeyframesMarker.Auto();
-		    
+
 		    // NOTE: This check previously allowed for slight differences in the length due to integer division.
 		    // Although it worked correctly, this _felt_ very error-prone & hard to reason about so we limit
 		    // this to the exact same length now, which is the only case that makes sense anyway.
@@ -55,7 +56,7 @@ namespace UnityGLTF
 			    
 			    if (foundDuplicates.Count <= 0) return (times, values);
 			    removeAnimationUnneededKeyframesCopyWithoutDuplicatesMarker.Begin();
-			    var t2 = new List<T>(times.Count);
+			    var t2 = new List<ulong>(times.Count);
 			    var v2 = new List<object>(values.Count);
 			    
 			    var nextDuplicate = foundDuplicates.Dequeue();
@@ -85,7 +86,7 @@ namespace UnityGLTF
 			    var arraySize = values.Count / times.Count;
 			    var singleFrameWeights = values.Take(arraySize).ToArray(); 
 			    
-			    var t2 = new List<T>(times.Count);
+			    var t2 = new List<ulong>(times.Count);
 			    var v2 = new List<object>(values.Count);
 			    
 			    t2.Add(times[0]);
@@ -119,7 +120,7 @@ namespace UnityGLTF
 		    }
 	    }
 
-	    /// only used by the weird branch of <see cref="RemoveUnneededKeyframes"/> &amp; a workaround for having no IReadOnlyList.Copy method
+	    /// only used by the weird branch of <see cref="RemoveUnneededKeyframes"/> & a workaround for having no IReadOnlyList.Copy method
 	    private static void copy(IReadOnlyList<object> values, int from, object[] to, int start, int length) {
 		    if(values.Count <= from + length)
 			    throw new IndexOutOfRangeException("The source collection is too small to copy the requested range.");

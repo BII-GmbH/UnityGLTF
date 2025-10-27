@@ -61,12 +61,12 @@ namespace UnityGLTF
 			recorder = new GLTFRecorder(
 				exportRoot,
 				recordTransformInWorldSpace: tr => recordRootInWorldSpace && tr == exportRoot,
-				recordBlendShapes: shouldRecordBlendShapes,
+				animationTimeStep: TimeSpan.FromMilliseconds(20),
+				animationStartOffset: CurrentTime,
+				recordBlendShapes: shouldRecordBlendShapes, 
 				recordAnimationPointer: shouldUseAnimationPointer,
 				recordVisibility: true
 			);
-			
-			recorder.StartRecording(fixedAnimationSampleRate: TimeSpan.FromMilliseconds(20),CurrentTime);
 			recordingStarted?.Invoke();
 
 			StartCoroutine(_UpdateRecording());

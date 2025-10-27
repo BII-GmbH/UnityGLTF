@@ -8,7 +8,7 @@ namespace UnityGLTF.Timeline.Samplers
         public override string PropertyName => "baseColorFactor";
 
         public override AnimationInterpolationType InterpolationType => AnimationInterpolationType.LINEAR;
-
+        
         public override IEqualityComparer<Color?> DataComparer => EqualityComparer<Color?>.Default;
 
         internal override Material getTarget(Transform transform) {

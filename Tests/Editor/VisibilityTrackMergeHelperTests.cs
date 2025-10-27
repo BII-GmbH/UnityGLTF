@@ -63,13 +63,13 @@ namespace Tests.Editor
                     (10ul, scale)
                 };
                 
-                var uut = new MergeVisibilityAndScaleTrackMerger(visTimes, visValues, scaleTimes, scaleValues);
+                var uut = new MergeVisibilityAndScaleTrackMerger(animationStepTime: sampleTimeStep, visTimes, visValues, scaleTimes, scaleValues);
 
                 var gotten = uut.Merge().ToArray();
                 assertSequenceEqual(expectedResult, gotten);
             }
 
-            [Test] public void IfScaleHasMoreEntriesThanVisibility_AndLastInvisible_TheseSamplesAreStillEmitted() {
+            [Test] public void IfScaleHasMoreEntriesThanVisibility_ButLastInvisible_TheseSamplesAreIgnored() {
                 
                 var scale = new Vector3(2, 2, 2);
                 var scaleTimes = new ulong[] {
@@ -91,13 +91,10 @@ namespace Tests.Editor
                 var expectedResult = new (ulong Time, Vector3 Scale)[] {
                     (0, Vector3.one),          
                     (1, scale),         
-                    (2, Vector3.zero),
-                    (5, Vector3.zero),
-                    (8, Vector3.zero),
-                    (10, Vector3.zero)
+                    (2, Vector3.zero)
                 };
                 
-                var uut = new MergeVisibilityAndScaleTrackMerger(visTimes, visValues, scaleTimes, scaleValues);
+                var uut = new MergeVisibilityAndScaleTrackMerger(sampleTimeStep, visTimes, visValues, scaleTimes, scaleValues);
 
                 assertSequenceEqual(expectedResult, uut.Merge().ToArray());
             }
@@ -130,7 +127,7 @@ namespace Tests.Editor
                     (10, new Vector3(5,5,5)),
                 };
                 
-                var uut = new MergeVisibilityAndScaleTrackMerger(visTimes, visValues, scaleTimes, scaleValues);
+                var uut = new MergeVisibilityAndScaleTrackMerger(sampleTimeStep, visTimes, visValues, scaleTimes, scaleValues);
                 
                 var gotten = uut.Merge().ToArray();
                 assertSequenceEqual(expectedResult, gotten);
@@ -165,7 +162,7 @@ namespace Tests.Editor
                     (10, new Vector3(5,5,5)),
                 };
                 
-                var uut = new MergeVisibilityAndScaleTrackMerger(visTimes, visValues, scaleTimes, scaleValues);
+                var uut = new MergeVisibilityAndScaleTrackMerger(sampleTimeStep, visTimes, visValues, scaleTimes, scaleValues);
 
                 assertSequenceEqual(expectedResult, uut.Merge().ToArray());
             }
@@ -190,7 +187,7 @@ namespace Tests.Editor
                 //  1  6.0 -|                     /      x-----x 
                 //     4.0 -|                    /
                 //     2.0 -|                    |
-                //     0.0 -|    x-----x--x-----x
+                //     0.0 -|    x--------------x
             
                 // Res 8.0 -|    -     -     -  x__-     -     -
                 //  2  6.0 -|             x--/     \-----x-----x 
@@ -221,8 +218,6 @@ namespace Tests.Editor
                 
                 var expectedResult1 = new (ulong Time, Vector3 Scale)[] {
                     ( 0, Vector3.zero),
-                    ( 2, Vector3.zero),          
-                    ( 3, Vector3.zero),          
                     ( 5, Vector3.zero),          
                     ( 6, new Vector3(8,8,8)),
                     ( 8, new Vector3(6,6,6)),
@@ -238,8 +233,8 @@ namespace Tests.Editor
                 };
                 
                 
-                var uut1 = new MergeVisibilityAndScaleTrackMerger(visTimes, visValues1, scaleTimes, scaleValues);
-                var uut2 = new MergeVisibilityAndScaleTrackMerger(visTimes, visValues2, scaleTimes, scaleValues);
+                var uut1 = new MergeVisibilityAndScaleTrackMerger(sampleTimeStep, visTimes, visValues1, scaleTimes, scaleValues);
+                var uut2 = new MergeVisibilityAndScaleTrackMerger(sampleTimeStep, visTimes, visValues2, scaleTimes, scaleValues);
 
                 assertSequenceEqual(expectedResult1, uut1.Merge().ToArray());
                 assertSequenceEqual(expectedResult2, uut2.Merge().ToArray());
@@ -283,15 +278,13 @@ namespace Tests.Editor
                 var visValues1 = new[] { false, true, true };
                 
                 var expectedResult1 = new (ulong Time, Vector3 Scale)[] {
-                    (0, Vector3.zero),     
-                    (2, Vector3.zero),
-                    (3, Vector3.zero),     
+                    (0, Vector3.zero),          
                     (5, Vector3.zero),          
                     (6, new Vector3(6,6,6)),
                     (10, new Vector3(6,6,6)),
                 };
                 
-                var uut1 = new MergeVisibilityAndScaleTrackMerger(visTimes, visValues1, scaleTimes, scaleValues);
+                var uut1 = new MergeVisibilityAndScaleTrackMerger(sampleTimeStep, visTimes, visValues1, scaleTimes, scaleValues);
 
                 assertSequenceEqual(expectedResult1, uut1.Merge().ToArray());
             }
@@ -344,7 +337,8 @@ namespace Tests.Editor
                     (10, new Vector3(0,0,0)),
                 };
                 
-                var uut1 = new MergeVisibilityAndScaleTrackMerger(visTimes, visValues1, scaleTimes, scaleValues);
+                var uut1 = new MergeVisibilityAndScaleTrackMerger(sampleTimeStep, visTimes, visValues1, scaleTimes, scaleValues);
+
                 assertSequenceEqual(expectedResult1, uut1.Merge().ToArray());
             }
         }
@@ -387,7 +381,7 @@ namespace Tests.Editor
             //   V 1.0 -|
             //     0.0 -| -   -  x------------x  -   -   - 
             [Test]
-            public void IfLastInvisibleAndCurrentInvisible_ZeroScaleSampleIsReturned() {
+            public void IfLastInvisibleAndCurrentInvisible_NoSamplesAreReturned() {
                 const bool lastVisible = false;
                 const bool currentVisible = false;
 
@@ -405,10 +399,8 @@ namespace Tests.Editor
                     lastTime: 0,
                     out var emittedExtraSample
                 );
-                Assert.That(result, Has.Count.EqualTo(1));
 
-                Assert.AreEqual(time, result[0].Time);
-                Assert.AreEqual(Vector3.zero, result[0].Scale);
+                Assert.IsEmpty(result);
                 Assert.That(emittedExtraSample, Is.False);
             }
 
@@ -571,7 +563,7 @@ namespace Tests.Editor
             //   V 1.0 -|-   -  x------------x  -   -   -
             //     0.0 -|
             [Test]
-            public void IfLastVisibleAndCurrentVisible_SampleIsStillReturned() {
+            public void IfLastVisibleAndCurrentVisible_NoSamplesAreReturned() {
                 const bool lastVisible = true;
                 const bool currentVisible = true;
 
@@ -593,15 +585,11 @@ namespace Tests.Editor
                     lastVisible,
                     lastScaleTime,
                     lastScale,
-                    lastRecordedTime: lastScaleTime,
+                    lastRecordedTime: visTime,
                     out var emittedExtraSample
                 );
-                
-                Assert.That(result, Has.Count.EqualTo(1));
-                
-                Assert.AreEqual(visTime, result[0].Time);
-                Assert.AreEqual(scale, result[0].Scale);
-                
+
+                Assert.IsEmpty(result);
                 Assert.That(emittedExtraSample, Is.False);
 
             }
@@ -610,7 +598,7 @@ namespace Tests.Editor
             //   V 1.0 -|
             //     0.0 -| -   -  x------------x  -   -   - 
             [Test]
-            public void IfLastInvisibleAndCurrentInvisible_InvisibleSampleIsReturnedAnyway() {
+            public void IfLastInvisibleAndCurrentInvisible_NoSamplesAreReturned() {
                 const bool lastVisible = false;
                 const bool currentVisible = false;
 
@@ -635,12 +623,8 @@ namespace Tests.Editor
                     lastRecordedTime: visTime,
                     out var emittedExtraSample
                 );
-                
-                Assert.That(result, Has.Count.EqualTo(1));
-                
-                Assert.AreEqual(visTime, result[0].Time);
-                Assert.AreEqual(Vector3.zero, result[0].Scale);
-                
+
+                Assert.IsEmpty(result);
                 Assert.That(emittedExtraSample, Is.False);
             }
 

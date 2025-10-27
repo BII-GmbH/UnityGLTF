@@ -31,12 +31,16 @@ namespace UnityGLTF.Timeline
 			public GLTFRecorder Create(
 				Transform root,
 				Func<Transform, bool> recordTransformInWorldSpace,
+				TimeSpan animationTimeStep,
+				TimeSpan animationStartOffset,
 				bool recordBlendShapes = true,
 				bool recordAnimationPointer = false,
 				bool recordVisibility = false
 			) => new(
 				root,
 				recordTransformInWorldSpace,
+				animationTimeStep,
+				animationStartOffset,
 				recordBlendShapes,
 				recordAnimationPointer,
 				recordVisibility,
@@ -45,13 +49,13 @@ namespace UnityGLTF.Timeline
 		}
 	
 		
-		private readonly bool recordBlendShapes;
-		private readonly bool recordAnimationPointer;
 		
 		
 		internal GLTFRecorder(
 			Transform root,
 			Func<Transform, bool> recordTransformInWorldSpace,
+			TimeSpan animationTimeStep,
+			TimeSpan animationStartOffset,
 			bool recordBlendShapes = true,
 			bool recordAnimationPointer = false,
 			bool recordVisibility = false,
@@ -60,48 +64,86 @@ namespace UnityGLTF.Timeline
 			if (!root)
 				throw new ArgumentNullException(nameof(root), "Please provide a root transform to record.");
 
-			this.animationSamplers = AnimationSamplers.From(
-				recordTransformInWorldSpace,
-				recordVisibility,
+			this.recorderData = new RecorderData(
+				animationTimeStep,
+				animationStartOffset,
 				recordBlendShapes,
 				recordAnimationPointer,
-				additionalSamplers
+				root,
+				AnimationSamplers.From(
+					recordTransformInWorldSpace,
+					recordVisibility,
+					recordBlendShapes,
+					recordAnimationPointer,
+					additionalSamplers
+				)
 			);
-			this.root = root;
-			this.recordBlendShapes = recordBlendShapes;
-			this.recordAnimationPointer = recordAnimationPointer;
+			this._recorderState = new RecorderState.NotRecording();
 		}
 
-		/// <summary>
-		/// Optionally assign a list of transforms to be recorded, other transforms will be ignored
-		/// </summary>
-		internal ICollection<Transform>? recordingList = null;
-		private bool allowRecordingTransform(Transform tr) => recordingList == null || recordingList.Contains(tr);
 
-		private readonly Transform root;
-		private readonly Dictionary<Transform, AnimationData> recordingAnimatedTransforms = new Dictionary<Transform, AnimationData>(64);
-
-		// this is a cache for the otherwise very allocation-heavy GetComponentsInChildren calls for every frame while recording
-		private readonly List<Transform> transformCache = new List<Transform>();
+		private sealed record RecorderData(
+			TimeSpan AnimationTimeStep,
+			TimeSpan AnimationStartOffset,
+			bool RecordBlendShapes,
+			bool RecordAnimationPointer,
+			Transform Root,
+			AnimationSamplers AnimationSamplers
+		);
 		
-		private readonly AnimationSamplers animationSamplers;
+		internal abstract class RecorderState
+		{
+			private RecorderState() { }
 
-		private TimeSpan animationSampleStepTime;
-		private TimeSpan animationStartOffset;
-		private ulong lastRecordedSampleNumber;
-		private bool hasRecording;
-		private bool isRecording;
+			public sealed class NotRecording : RecorderState
+			{
+				
+			}
+
+			/// 
+			public sealed class CurrentlyRecording : RecorderState
+			{
+				/// <param name="OnlyRecordTheseTransforms">
+				/// Optionally assign a list of transforms to be recorded, other transforms will be ignored
+				/// </param>
+				public CurrentlyRecording(ulong LastRecordedSampleNumber,
+					Dictionary<Transform, AnimationData> CurrentlyRecordingTransforms,
+					List<Transform> TransformCache) {
+					this.LastRecordedSampleNumber = LastRecordedSampleNumber;
+					this.CurrentlyRecordingTransforms = CurrentlyRecordingTransforms;
+					this.TransformCache = TransformCache;
+				}
+				
+				public ulong LastRecordedSampleNumber { get; set; }
+				public Dictionary<Transform, AnimationData> CurrentlyRecordingTransforms { get; }
+				public List<Transform> TransformCache { get; init; }
+			}
+
+			public sealed class RecordingFinished : RecorderState
+			{
+				public RecordingFinished(ulong LastRecordedSampleNumber,
+					Dictionary<Transform, AnimationData> RecordedTransforms) {
+					this.LastRecordedSampleNumber = LastRecordedSampleNumber;
+					this.RecordedTransforms = RecordedTransforms;
+				}
+				public ulong LastRecordedSampleNumber { get; init; }
+				public Dictionary<Transform, AnimationData> RecordedTransforms { get; init; }
+			}
+
+		}
 		
-		public bool HasRecording => hasRecording;
-		public bool IsRecording => isRecording;
+		private readonly RecorderData recorderData;
+		private RecorderState _recorderState;
+		
+		public bool IsRecording => _recorderState is RecorderState.CurrentlyRecording;
 
 
 		/// <summary>
 		/// Application Time when the most recent sample was recorded
 		/// </summary>;
-		public TimeSpan LastRecordedTime => sampleIndexToTimeOffset(lastRecordedSampleNumber);
-		
-		public TimeSpan RecordingStartTime => animationStartOffset;
+		public TimeSpan? LastRecordedTime => _recorderState is RecorderState.CurrentlyRecording rec ? sampleIndexToTimeOffset(rec.LastRecordedSampleNumber) : null;
+
+		public TimeSpan RecordingStartTime => recorderData.AnimationStartOffset;
 		
 
 		public string AnimationName = "Recording";
@@ -153,25 +195,42 @@ namespace UnityGLTF.Timeline
 			}
 		}
 		
-		public void StartRecording(TimeSpan fixedAnimationSampleRate, TimeSpan animationStartOffset, bool includeInactiveTransforms = true) {
-			animationSampleStepTime = fixedAnimationSampleRate;
-			this.animationStartOffset = animationStartOffset;
-			lastRecordedSampleNumber = 0;
+		public void StartRecording(bool includeInactiveTransforms = true) {
 			
-			root.GetComponentsInChildren<Transform>(includeInactiveTransforms, transformCache);
-			recordingAnimatedTransforms.Clear();
-
-			foreach (var tr in transformCache)
-			{
-				if (!allowRecordingTransform(tr)) continue;
-				recordingAnimatedTransforms.Add(tr, new AnimationData(animationSamplers, tr, lastRecordedSampleNumber));
+			if(_recorderState is not RecorderState.NotRecording)
+				throw new Exception("Cannot start recording because the recorder is already recording or has finished recording.");
+			
+			var recordingTransforms = new Dictionary<Transform, AnimationData>(64);
+			var transformCache = new List<Transform>(64);
+			
+			recorderData.Root.GetComponentsInChildren<Transform>(includeInactiveTransforms, transformCache);
+			
+			foreach (var tr in transformCache) {
+				var emptyData = new AnimationData(recorderData.AnimationSamplers, tr, 0);
+				recordingTransforms.Add(tr, emptyData);
 			}
+			
+			var recordingState = new RecorderState.CurrentlyRecording(
+				LastRecordedSampleNumber: 0,
+				CurrentlyRecordingTransforms: recordingTransforms,
+				TransformCache: transformCache
+			);
 			transformCache.Clear();
+			
+			_recorderState = recordingState;
+			
+			//
+			// animationSampleStepTime = fixedAnimationSampleRate;
+			// this.animationStartOffset = animationStartOffset;
+			// lastRecordedSampleNumber = null;
+			
+			// recorderData.Root.GetComponentsInChildren<Transform>(includeInactiveTransforms, recordingState.TransformCache);
+			// recordingAnimatedTransforms.Clear();
+			//
+			// transformCache.Clear();
 
-			isRecording = true;
-			hasRecording = true;
 		}
-
+		
 		private static readonly ProfilerMarker updateRecordingSingleIterationMarker = new ProfilerMarker("Update Recording - Single Iteration");
 		
 		/// <summary>
@@ -181,12 +240,15 @@ namespace UnityGLTF.Timeline
 		/// <exception cref="InvalidOperationException">thrown if the recorder is not recording when this is called</exception>
 		public void UpdateRecording(TimeSpan currentTime)
 		{
+			if(_recorderState is not RecorderState.CurrentlyRecording recording)
+				throw new InvalidOperationException("Cannot update recording because the recorder is not currently recording.");
+			
 			Profiler.BeginSample("Get Transforms");
-			root.GetComponentsInChildren(true, transformCache);
+			recorderData.Root.GetComponentsInChildren(true, recording.TransformCache);
 			Profiler.EndSample();
-			updateRecording(currentTime, transformCache);
+			updateRecording(currentTime, recording.TransformCache);
 			Profiler.BeginSample("Clear Transform Cache");
-			transformCache.Clear();
+			recording.TransformCache.Clear();
 			Profiler.EndSample();
 		}
 		
@@ -200,7 +262,7 @@ namespace UnityGLTF.Timeline
 		public void UpdateRecordingFor(TimeSpan currentTime, IReadOnlyCollection<Transform> transforms) {
 			Profiler.BeginSample("Check transforms are parented properly");
 			foreach (var transform in transforms) {
-				if (transform && !transform.IsChildOf(root))
+				if (transform && !transform.IsChildOf(recorderData.Root))
 					throw new InvalidOperationException(
 						$"Transform {transform.name} passed in for recording is not parented to the recording root transform. This is not allowed"
 					);
@@ -211,64 +273,58 @@ namespace UnityGLTF.Timeline
 		}
 		
 		private void updateRecording(TimeSpan currentTime, IReadOnlyCollection<Transform> transforms) {
-			if (!isRecording)
-			{
-				throw new InvalidOperationException($"{nameof(GLTFRecorder)} isn't recording, but {nameof(UpdateRecording)} was called. This is invalid.");
-			}
+			if(_recorderState is not RecorderState.CurrentlyRecording recording)
+				throw new InvalidOperationException("Cannot update recording because the recorder is not currently recording.");
 
-			if(currentTime < animationStartOffset)
-				throw new InvalidOperationException($"Cannot sample the animation at {currentTime} because it is before the animation starts at {animationStartOffset}");
+			if(currentTime < recorderData.AnimationStartOffset)
+				throw new InvalidOperationException($"Cannot sample the animation at {currentTime} because it is before the animation starts at {recorderData.AnimationStartOffset}");
 			
-			var sampleIndex = (ulong) Math.Floor((currentTime - RecordingStartTime) / animationSampleStepTime);
-			
-			if (sampleIndex <= lastRecordedSampleNumber)
+			var sampleIndex = (ulong) Math.Floor((currentTime - RecordingStartTime) / recorderData.AnimationTimeStep);
+			var lastSampleNumber = recording.LastRecordedSampleNumber;
+			if (sampleIndex <= lastSampleNumber)
 			{
-				Debug.LogWarning($"Can't record backwards in time, please avoid this (Tried to record at {sampleIndex}, but it is already {lastRecordedSampleNumber}).");
+				Debug.LogWarning($"Can't record backwards in time, please avoid this (Tried to record at {sampleIndex}, but it is already {lastSampleNumber}).");
 				return;
 			}
-			
 			foreach (var tr in transforms) {
 				using var _ = updateRecordingSingleIterationMarker.Auto();
-				
-				if (!allowRecordingTransform(tr)) continue;
-				if (!recordingAnimatedTransforms.ContainsKey(tr))
+				if (!recording.CurrentlyRecordingTransforms.TryGetValue(tr, out var recordingData))
 				{
 					Profiler.BeginSample("Update Recording - Add New Transform");
-					Debug.LogWarning($"Found previously unknown transform during recording: {tr}");
+					Debug.Log("Found previously unknown transform during recording.");
 					// because lastRecordedTime > 0, this will insert an "empty" frame with scale=0,0,0 at time = 0
 					// because this object just appeared in this frame
-					var emptyData = new AnimationData(animationSamplers, tr, lastRecordedSampleNumber);
-					recordingAnimatedTransforms.Add(tr, emptyData);
+					
+					recordingData = new AnimationData(recorderData.AnimationSamplers, tr, lastSampleNumber);
+					
+					recording.CurrentlyRecordingTransforms.Add(tr, recordingData);
 					Profiler.EndSample();
-				} else { recordingAnimatedTransforms[tr].Update(sampleIndex); }
+				} else {
+					recordingData.Update(sampleIndex);	
+				}
+				
 			}
-			lastRecordedSampleNumber = sampleIndex;
+			recording.LastRecordedSampleNumber = sampleIndex;
 		}
-		
-		private TimeSpan sampleIndexToTimeOffset(ulong ind) => animationStartOffset + animationSampleStepTime * ind;
-		
-		internal void endRecording(out Dictionary<Transform, AnimationData>? param)
-		{
-			param = null;
-			if (!hasRecording) return;
-			param = recordingAnimatedTransforms;
-		}
+
+		private TimeSpan sampleIndexToTimeOffset(ulong ind) => recorderData.AnimationStartOffset + ind * recorderData.AnimationTimeStep;
 
 		public bool EndRecording()
 		{
-			if (!isRecording) return false;
-			if (!hasRecording) return false;
-			isRecording = false;
+			if(_recorderState is not RecorderState.CurrentlyRecording recording)
+				throw new Exception($"Cannot end recording because the recorder is not currently recording. It is {_recorderState.GetType().Name}.");
 			
 			#if UNITY_EDITOR
 			Debug.Log("Gltf Recording saved. "
-				+ "Tracks: " + recordingAnimatedTransforms.Count + ", "
-				+ "Total Keyframes: " + recordingAnimatedTransforms.Sum(x => x.Value.tracks.Sum(y => y.ValuesUntyped.Count())));
+				+ "Tracks: " + recording.CurrentlyRecordingTransforms.Count + ", "
+				+ "Total Keyframes: " + recording.CurrentlyRecordingTransforms.Sum(x => x.Value.tracks.Sum(y => y.ValuesUntyped.Count())));
 			#endif
-
-			// release any excess memory of the cache as fast as we can
-			transformCache.Clear();
-			transformCache.TrimExcess();
+			
+			_recorderState = new RecorderState.RecordingFinished(
+				recording.LastRecordedSampleNumber,
+				recording.CurrentlyRecordingTransforms
+			);
+			
 			return true;
 		}
 		
@@ -285,25 +341,22 @@ namespace UnityGLTF.Timeline
 			logger ??= new Logger(new StringBuilderLogHandler());
 		
 			// ensure correct animation pointer plugin settings are used
-			if (!recordAnimationPointer)
+			if (!recorderData.RecordAnimationPointer)
 				settings.ExportPlugins.RemoveAll(x => x is AnimationPointerExport);
 			else if (!settings.ExportPlugins.Any(x => x is AnimationPointerExport))
 				settings.ExportPlugins.Add(ScriptableObject.CreateInstance<AnimationPointerExport>());
 
-			if (!recordBlendShapes)
+			if (!recorderData.RecordBlendShapes)
 				settings.BlendShapeExportProperties = GLTFSettings.BlendShapeExportPropertyFlags.None;
 			
 			var exportContext =
 				new ExportContext(settings, ignoredTransforms ?? Enumerable.Empty<Transform>()) { AfterSceneExport = PostExport, logger = logger };
 
-			return new GLTFSceneExporter(new Transform[] { root }, exportContext);
+			return new GLTFSceneExporter(new Transform[] { recorderData.Root }, exportContext);
 		}
 
 		public void EndRecordingAndSaveToFile(string filepath, string sceneName = "scene", GLTFSettings? settings = null)
 		{
-			if (!isRecording) return;
-			if (!hasRecording) return;
-
 			var dir = Path.GetDirectoryName(filepath);
 			if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
 			using (var filestream = new FileStream(filepath, FileMode.Create, FileAccess.Write))
@@ -353,10 +406,13 @@ namespace UnityGLTF.Timeline
 
 		public void CollectAndProcessAnimation(AnimationDataCollector gltfSceneExporter, GLTFAnimation anim, bool calculateTranslationBounds, out Bounds translationBounds)
 		{
+			if(_recorderState is not RecorderState.RecordingFinished recording)
+				throw new Exception("Cannot collect animation because the recorder has not finished recording yet.");
+			
 			var gotFirstValue = false;
 			translationBounds = new Bounds();
 
-			foreach (var kvp in recordingAnimatedTransforms) {
+			foreach (var kvp in recording.RecordedTransforms) {
 				
 				using var _ = processAnimationMarker.Auto();
 				
@@ -420,7 +476,7 @@ namespace UnityGLTF.Timeline
 				// So to simulate support for that, merge the visibility track with the scale track
 				// forcing the scale to (0,0,0) whenever the model is invisible
 				foundScaleTrack = true;
-				var result = mergeVisibilityAndScaleTracks(visibilityTrack, scaleTrack, animationSampleStepTime);
+				var result = mergeVisibilityAndScaleTracks(visibilityTrack, scaleTrack, recorderData.AnimationTimeStep);
 				if (result == null) return;
 				
 				trackSampleNumbers = result!.Value.times;
@@ -430,7 +486,7 @@ namespace UnityGLTF.Timeline
 			// tracks that contain only an initial entry or two entries that
 			// are identical do not bring any benefit - they only bloat the file
 			if (trackValues.Length <= 2 && 
-				trackValues.All(v => track.InitialValueUntyped?.Equals(v) ?? false))
+				trackValues.All(v => track.LastValueUntyped?.Equals(v) ?? false))
 				return;
 
 			
@@ -454,8 +510,8 @@ namespace UnityGLTF.Timeline
 				}
 			}
 			
-			var (filteredTimes, filteredValues) = AnimationFilteringUtils.RemoveUnneededKeyframes(trackSampleNumbers, trackValues);
-			(trackSampleNumbers, trackValues) = (filteredTimes.ToArray(), filteredValues.ToArray());
+			// var (filteredTimes, filteredValues) = AnimationFilteringUtils.RemoveUnneededKeyframes(trackSampleNumbers, trackValues);
+			// (trackSampleNumbers, trackValues) = (filteredTimes.ToArray(), filteredValues.ToArray());
 			
 			var trackTimes = trackSampleNumbers.Select(sid => (float) sampleIndexToTimeOffset(sid).TotalSeconds).ToArray();
 			gltfSceneExporter.AddAnimationData(trackTargetTransform, track.AnimatedObjectUntyped, track.PropertyName, animation, track.InterpolationType, trackTimes, trackValues);
@@ -464,10 +520,36 @@ namespace UnityGLTF.Timeline
 		/// use this only if you only have a visibility track, no scale, otherwise use <see cref="mergeVisibilityAndScaleTracks"/> instead to merge the two 
 		internal static (AnimationInterpolationType interpolation, ulong[] times, Vector3[] mergedScales)
 			visibilityTrackToScaleTrack(AnimationTrack<GameObject, bool> visibilityTrack) {
-			var visTimes = visibilityTrack.Times;
-			var visValues = visibilityTrack.Values;
-			var visScaleValues = visValues.Select(vis => vis ? Vector3.one : Vector3.zero).ToArray();
-			return (AnimationInterpolationType.STEP, visTimes, visScaleValues);
+
+			
+			var inTimes = visibilityTrack.Times;
+			var inValues = visibilityTrack.Values;
+			
+			var outTimes = new List<ulong>();
+			var outScale = new List<Vector3>();
+			
+			for (var vi = 0; vi < inTimes.Length; vi++) {
+				var time = inTimes[vi];
+				var value = visibilityTrack.Values[vi];
+
+				//if (value != lastVis) {
+				if (vi > 0 && inTimes[vi - 1] < time - 1) {
+					outScale.Add(inValues[vi-1] ? Vector3.one : Vector3.zero);
+					outTimes.Add(time - 1);
+				}
+				// else {
+				// 	// if lastTime == time - 1 we have a problem
+				// 	throw new Exception("Uh OH");
+				// }
+				
+				outScale.Add(value ? Vector3.one : Vector3.zero);
+				outTimes.Add(time);
+			}
+			//
+			// var visTimes = visibilityTrack.Times;
+			// var visValues = visibilityTrack.Values;
+			// var visScaleValues = visValues.Select(vis => vis ? Vector3.one : Vector3.zero).ToArray();
+			return (AnimationInterpolationType.LINEAR, outTimes.ToArray(), outScale.ToArray());
 		}
 
 		internal static (AnimationInterpolationType interpolation, ulong[] times, Vector3[] mergedScales)?
@@ -483,6 +565,7 @@ namespace UnityGLTF.Timeline
 			// both tracks are present, need to merge, but visibility always takes precedence
 
 			var currentState = new MergeVisibilityAndScaleTrackMerger(
+				animationSampleStepTime,
 				visibilityTrack.Times,
 				visibilityTrack.Values,
 				scaleTrack.Times,
