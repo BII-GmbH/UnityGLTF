@@ -24,8 +24,6 @@ namespace UnityGLTF.Timeline
         Component? CustomComponentAnimationSampler.GetTarget(Transform transform) => getTarget(transform);
         public IEqualityComparer<TData> EqualityComparer { get; }
         
-        protected internal TData? defaultValue { get; }
-        
         /// While sampling, gets the target of the animation from a transform
         /// <param name="transform"></param>
         /// <returns>get the target of the animation, or null if it is not found</returns>
