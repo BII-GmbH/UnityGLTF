@@ -67,6 +67,7 @@ namespace UnityGLTF
 				recordAnimationPointer: shouldUseAnimationPointer,
 				recordVisibility: true
 			);
+			recorder.StartRecording();
 			recordingStarted?.Invoke();
 
 			StartCoroutine(_UpdateRecording());

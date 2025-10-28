@@ -218,17 +218,6 @@ namespace UnityGLTF.Timeline
 			transformCache.Clear();
 			
 			_recorderState = recordingState;
-			
-			//
-			// animationSampleStepTime = fixedAnimationSampleRate;
-			// this.animationStartOffset = animationStartOffset;
-			// lastRecordedSampleNumber = null;
-			
-			// recorderData.Root.GetComponentsInChildren<Transform>(includeInactiveTransforms, recordingState.TransformCache);
-			// recordingAnimatedTransforms.Clear();
-			//
-			// transformCache.Clear();
-
 		}
 		
 		private static readonly ProfilerMarker updateRecordingSingleIterationMarker = new ProfilerMarker("Update Recording - Single Iteration");
@@ -327,6 +316,16 @@ namespace UnityGLTF.Timeline
 			
 			return true;
 		}
+		
+		internal IReadOnlyDictionary<Transform, AnimationData>? endRecordingAndGetAnimationTracks() {
+			EndRecording();
+			
+			if (_recorderState is not RecorderState.RecordingFinished recording) {
+				return null;
+			}
+			return recording.RecordedTransforms;
+		}
+
 		
 		public GLTFSceneExporter CreateSceneExporterAfterRecording(GLTFSettings? settings = null, IEnumerable<Transform>? ignoredTransforms = null, ILogger? logger = null) 
 		{
@@ -476,7 +475,7 @@ namespace UnityGLTF.Timeline
 				// So to simulate support for that, merge the visibility track with the scale track
 				// forcing the scale to (0,0,0) whenever the model is invisible
 				foundScaleTrack = true;
-				var result = mergeVisibilityAndScaleTracks(visibilityTrack, scaleTrack, recorderData.AnimationTimeStep);
+				var result = mergeVisibilityAndScaleTracks(visibilityTrack, scaleTrack);
 				if (result == null) return;
 				
 				trackSampleNumbers = result!.Value.times;
@@ -546,17 +545,31 @@ namespace UnityGLTF.Timeline
 				outTimes.Add(time);
 			}
 			//
-			// var visTimes = visibilityTrack.Times;
-			// var visValues = visibilityTrack.Values;
-			// var visScaleValues = visValues.Select(vis => vis ? Vector3.one : Vector3.zero).ToArray();
+			// var inTimes = visibilityTrack.Times;
+			// var inValues = visibilityTrack.Values;
+			
+			var outTimes = new List<ulong>();
+			// var outScale = new List<Vector3>();
+			
+			for (var vi = 0; vi < inTimes.Length; vi++) {
+				var time = inTimes[vi];
+				var value = visibilityTrack.Values[vi];
+
+				if (vi > 0 && inTimes[vi - 1] < time - 1) {
+					outScale.Add(inValues[vi-1] ? Vector3.one : Vector3.zero);
+					outTimes.Add(time - 1);
+				}
+				
+				outScale.Add(value ? Vector3.one : Vector3.zero);
+				outTimes.Add(time);
+			}
 			return (AnimationInterpolationType.LINEAR, outTimes.ToArray(), outScale.ToArray());
 		}
 
 		internal static (AnimationInterpolationType interpolation, ulong[] times, Vector3[] mergedScales)?
 			mergeVisibilityAndScaleTracks(
 				AnimationTrack<GameObject, bool>? visibilityTrack,
-				AnimationTrack<Transform, Vector3>? scaleTrack,
-				TimeSpan animationSampleStepTime
+				AnimationTrack<Transform, Vector3>? scaleTrack
 			) {
 			if (visibilityTrack == null && scaleTrack == null) return null;
 			if (visibilityTrack == null) return (scaleTrack!.InterpolationType, scaleTrack.Times, scaleTrack.Values);
