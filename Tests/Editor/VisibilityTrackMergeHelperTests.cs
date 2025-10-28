@@ -67,7 +67,7 @@ namespace Tests.Editor
                 assertSequenceEqual(expectedResult, gotten);
             }
 
-            [Test] public void IfScaleHasMoreEntriesThanVisibility_ButLastInvisible_TheseSamplesAreIgnored() {
+            [Test] public void IfScaleHasMoreEntriesThanVisibility_AndLastInvisible_TheseSamplesAreStillEmitted() {
                 
                 var scale = new Vector3(2, 2, 2);
                 var scaleTimes = new ulong[] {
@@ -89,7 +89,10 @@ namespace Tests.Editor
                 var expectedResult = new (ulong Time, Vector3 Scale)[] {
                     (0, Vector3.one),          
                     (1, scale),         
-                    (2, Vector3.zero)
+                    (2, Vector3.zero),
+                    (5, Vector3.zero),
+                    (8, Vector3.zero),
+                    (10, Vector3.zero)
                 };
                 
                 var uut = new MergeVisibilityAndScaleTrackMerger(visTimes, visValues, scaleTimes, scaleValues);
@@ -185,7 +188,7 @@ namespace Tests.Editor
                 //  1  6.0 -|                     /      x-----x 
                 //     4.0 -|                    /
                 //     2.0 -|                    |
-                //     0.0 -|    x--------------x
+                //     0.0 -|    x-----x--x-----x
             
                 // Res 8.0 -|    -     -     -  x__-     -     -
                 //  2  6.0 -|             x--/     \-----x-----x 
@@ -216,6 +219,8 @@ namespace Tests.Editor
                 
                 var expectedResult1 = new (ulong Time, Vector3 Scale)[] {
                     ( 0, Vector3.zero),
+                    ( 2, Vector3.zero),          
+                    ( 3, Vector3.zero),          
                     ( 5, Vector3.zero),          
                     ( 6, new Vector3(8,8,8)),
                     ( 8, new Vector3(6,6,6)),
@@ -276,7 +281,9 @@ namespace Tests.Editor
                 var visValues1 = new[] { false, true, true };
                 
                 var expectedResult1 = new (ulong Time, Vector3 Scale)[] {
-                    (0, Vector3.zero),          
+                    (0, Vector3.zero),     
+                    (2, Vector3.zero),
+                    (3, Vector3.zero),     
                     (5, Vector3.zero),          
                     (6, new Vector3(6,6,6)),
                     (10, new Vector3(6,6,6)),
@@ -336,7 +343,6 @@ namespace Tests.Editor
                 };
                 
                 var uut1 = new MergeVisibilityAndScaleTrackMerger(visTimes, visValues1, scaleTimes, scaleValues);
-
                 assertSequenceEqual(expectedResult1, uut1.Merge().ToArray());
             }
         }
@@ -379,7 +385,7 @@ namespace Tests.Editor
             //   V 1.0 -|
             //     0.0 -| -   -  x------------x  -   -   - 
             [Test]
-            public void IfLastInvisibleAndCurrentInvisible_NoSamplesAreReturned() {
+            public void IfLastInvisibleAndCurrentInvisible_ZeroScaleSampleIsReturned() {
                 const bool lastVisible = false;
                 const bool currentVisible = false;
 
@@ -397,8 +403,10 @@ namespace Tests.Editor
                     lastTime: 0,
                     out var emittedExtraSample
                 );
+                Assert.That(result, Has.Count.EqualTo(1));
 
-                Assert.IsEmpty(result);
+                Assert.AreEqual(time, result[0].Time);
+                Assert.AreEqual(Vector3.zero, result[0].Scale);
                 Assert.That(emittedExtraSample, Is.False);
             }
 
@@ -561,7 +569,7 @@ namespace Tests.Editor
             //   V 1.0 -|-   -  x------------x  -   -   -
             //     0.0 -|
             [Test]
-            public void IfLastVisibleAndCurrentVisible_NoSamplesAreReturned() {
+            public void IfLastVisibleAndCurrentVisible_SampleIsStillReturned() {
                 const bool lastVisible = true;
                 const bool currentVisible = true;
 
@@ -583,11 +591,15 @@ namespace Tests.Editor
                     lastVisible,
                     lastScaleTime,
                     lastScale,
-                    lastRecordedTime: visTime,
+                    lastRecordedTime: lastScaleTime,
                     out var emittedExtraSample
                 );
-
-                Assert.IsEmpty(result);
+                
+                Assert.That(result, Has.Count.EqualTo(1));
+                
+                Assert.AreEqual(visTime, result[0].Time);
+                Assert.AreEqual(scale, result[0].Scale);
+                
                 Assert.That(emittedExtraSample, Is.False);
 
             }
@@ -596,7 +608,7 @@ namespace Tests.Editor
             //   V 1.0 -|
             //     0.0 -| -   -  x------------x  -   -   - 
             [Test]
-            public void IfLastInvisibleAndCurrentInvisible_NoSamplesAreReturned() {
+            public void IfLastInvisibleAndCurrentInvisible_InvisibleSampleIsReturnedAnyway() {
                 const bool lastVisible = false;
                 const bool currentVisible = false;
 
@@ -621,8 +633,12 @@ namespace Tests.Editor
                     lastRecordedTime: visTime,
                     out var emittedExtraSample
                 );
-
-                Assert.IsEmpty(result);
+                
+                Assert.That(result, Has.Count.EqualTo(1));
+                
+                Assert.AreEqual(visTime, result[0].Time);
+                Assert.AreEqual(Vector3.zero, result[0].Scale);
+                
                 Assert.That(emittedExtraSample, Is.False);
             }
 
@@ -670,6 +686,8 @@ namespace Tests.Editor
                 Assert.AreEqual(visTime, result[0].Time);
                 Assert.AreEqual(new Vector3(2, 2, 2), result[0].Scale);
 
+                // This test case requires two emitted samples to create the instantaneous transition to zero scale.
+                // These samples are always emitted at time and time + 1, so expect visTime + 1 for the second sample.
                 Assert.AreEqual(visTime + 1, result[1].Time);
                 Assert.AreEqual(Vector3.zero, result[1].Scale);
             }

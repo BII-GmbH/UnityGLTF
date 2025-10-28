@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.Contracts;
 using System.Runtime.CompilerServices;
 using UnityEngine;
 
@@ -39,15 +38,8 @@ namespace UnityGLTF.Timeline
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void incrementScaleIndex() => scaleIndex++;
 
-        private static (ulong InsertedSample, ulong NormalSample) chooseSampleIndicesForInserted(ulong insertBeforeThisSample, ulong lastSampled) {
-            return (insertBeforeThisSample, insertBeforeThisSample + 1);
-            // var preferredTime = insertBeforeThisSample - 1;
-            //
-            // // inserting the additional sample at the previous sample index might not work (if there is a sample at that time already)
-            // return lastSampled < preferredTime
-            //     ? (insertBeforeThisSample - 1, insertBeforeThisSample)
-            //     : (insertBeforeThisSample, insertBeforeThisSample + 1);
-        }
+        private static (ulong InsertedSample, ulong NormalSample) chooseSampleIndicesForInserted(ulong insertBeforeThisSample) => 
+            (insertBeforeThisSample, insertBeforeThisSample + 1);
 
         public IEnumerable<(ulong Time, Vector3 mergedScale)> Merge() {
             var lastRecordedTime = 0ul;
@@ -128,15 +120,10 @@ namespace UnityGLTF.Timeline
                         }
                     }
                     else {
-                        //else if(scaleTime == 0)
-                        // we are invisible and at 0, emit a sample for this to ensure the
-                        // viewer doesn't handle this case differently than we expect
-
                         // both are invisible, use 0. 
-                        // We could also skip this sample, but for consistency we keep it
-                        // as there is already loads of logic that skips samples that are not necessary.
-                        // This would just be another source of potential errors
-                        result.Add((scaleTime, Vector3.zero));
+                        // We could also skip this sample, but for consistency we keep it.
+                        
+                        adjustLastSampleOrEmitNew(result, lastRecordedTime, scaleTime, Vector3.zero);
                     }
 
                     lastRecordedTime = scaleTime;
@@ -151,7 +138,7 @@ namespace UnityGLTF.Timeline
                 if (lastVisible != visible) {
                     // if the value flipped, this needs two samples - one for
                     // the previous value and then another one at the new value
-                    var (insertedSample, visSample) = chooseSampleIndicesForInserted(visTime, lastVisibleTime ?? lastRecordedTime);
+                    var (insertedSample, visSample) = chooseSampleIndicesForInserted(visTime);
                     result.Add((insertedSample, (lastVisible ?? visible) ? (lastScale ?? Vector3.one) : Vector3.zero));
                     result.Add((visSample, visible ? (lastScale ?? Vector3.one) : Vector3.zero));
                 } else {
@@ -164,10 +151,9 @@ namespace UnityGLTF.Timeline
             // process remaining scale changes - this will only enter if vis end was reached first -
             // if last visibility was invisible then there is no point in adding these.
             // However, as the other branches of this class do not skip unnecessary samples, we also do not here
-            // (lastVisible ?? currentVisibility) &&
             while (scaleIndex < inputScaleTimes.Length) {
                 var scaleTime = inputScaleTimes[scaleIndex];
-                var scale = inputScales[scaleIndex];
+                var scale = (lastVisible ?? currentVisibility) ? inputScales[scaleIndex] : Vector3.zero;
                 result.Add((scaleTime, scale));
                 incrementScaleIndex();
             }
@@ -194,7 +180,7 @@ namespace UnityGLTF.Timeline
                     // use last scale value
                     if (time > 0) {
                         emittedExtraSample = true;
-                        var (insertedSample, timeSample) = chooseSampleIndicesForInserted(time, lastTime);
+                        var (insertedSample, timeSample) = chooseSampleIndicesForInserted(time);
                         resultList.Add( (insertedSample, scale));
                         resultList.Add( (timeSample, Vector3.zero));
                     } else {
@@ -204,15 +190,7 @@ namespace UnityGLTF.Timeline
                     break;
                 case (true, true):
                     // both are visible, use scale value
-                    // special edge case: the last sample was a visibility change that emitted an
-                    // additional sample that now conflicts with our own sample
-                    // since it cannot know the correct scale value ahead of time,
-                    // so update the last emitted value instead of emitting a new one
-                    if (lastTime == time && time > 0) {
-                        resultList[^1] = (time, scale);
-                    } else {
-                        resultList.Add((time, scale));
-                    }
+                    adjustLastSampleOrEmitNew(resultList, lastTime, time, scale);
                     break;
                 case (false, false):
                     // both are invisible, use 0. 
@@ -226,7 +204,7 @@ namespace UnityGLTF.Timeline
                     // use scale value
                     if (time > 0) {
                         emittedExtraSample = true;
-                        var (insertedInvisibleSample, visibleSample) = chooseSampleIndicesForInserted(time, lastTime);
+                        var (insertedInvisibleSample, visibleSample) = chooseSampleIndicesForInserted(time);
                         
                         resultList.Add( (insertedInvisibleSample, Vector3.zero));
                         resultList.Add( (visibleSample, scale));
@@ -275,8 +253,7 @@ namespace UnityGLTF.Timeline
                     // use last scale value
                     emittedExtraSample = true;
                     var (insertedTime, sampleTime) = chooseSampleIndicesForInserted(
-                        visTime,
-                        lastSampled: Math.Max(lastVisibleTime, lastScaleTime)
+                        visTime
                     );
                     resultList.Add( (insertedTime, Vector3.LerpUnclamped(
                         lastScale,
@@ -292,15 +269,8 @@ namespace UnityGLTF.Timeline
                     // This code does not skip unnecessary samples, other logic does that, so still emit the sample
                     
                     // both are visible, use scale value
-                    // special edge case: the last sample was a visibility change that emitted an
-                    // additional sample that now conflicts with our own sample
-                    // since it cannot know the correct scale value ahead of time,
-                    // so update the last emitted value instead of emitting a new one
-                    if (lastRecordedTime == visTime && visTime > 0) {
-                        resultList[^1] = (visTime, lastScale);
-                    } else {
-                        resultList.Add((visTime, lastScale));
-                    }
+                    adjustLastSampleOrEmitNew(resultList, lastRecordedTime, visTime, lastScale);
+                    
                     // both are visible, we don't need a sample
                     break;
                 case (_, false):
@@ -314,8 +284,7 @@ namespace UnityGLTF.Timeline
                     // visibility changed from invisible to visible
                     // use scale value
                     var (insertedTime, sampleTime) = chooseSampleIndicesForInserted(
-                        visTime,
-                        lastSampled: Math.Max(lastVisibleTime, lastScaleTime)
+                        visTime
                     );
 
                     resultList.Add( (insertedTime, Vector3.zero));
@@ -327,9 +296,20 @@ namespace UnityGLTF.Timeline
                     )));
                     break;
                 }
-                default:
-                    emittedExtraSample = false;
-                    throw new ArgumentOutOfRangeException($"Unexpected visibility state combination: {lastVisible} {visible}");
+            }
+        }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void adjustLastSampleOrEmitNew(List<(ulong Time, Vector3 Scale)> resultList, ulong lastRecordedTime, ulong currentTime, Vector3 scale) {
+            // special edge case: the last sample was a visibility change that emitted an
+            // additional sample that now conflicts with our own sample
+            // since it cannot know the correct scale value ahead of time,
+            // so update the last emitted value instead of emitting a new one
+            if (lastRecordedTime == currentTime && currentTime > 0) {
+                resultList[^1] = (currentTime, scale);
+            }
+            else {
+                resultList.Add((currentTime, scale));
             }
         }
         
