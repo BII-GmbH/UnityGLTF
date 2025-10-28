@@ -12,8 +12,6 @@ namespace Tests.Editor
 
         public class MergeTests
         {
-            private static readonly TimeSpan sampleTimeStep = TimeSpan.FromMilliseconds(100);
-            
             private static void assertSequenceEqual((ulong Time, Vector3 Scale)[] expected, (ulong Time, Vector3 Scale)[] gotten) {
                 
                 Assert.AreEqual(
@@ -688,6 +686,8 @@ namespace Tests.Editor
                 Assert.AreEqual(visTime, result[0].Time);
                 Assert.AreEqual(new Vector3(2, 2, 2), result[0].Scale);
 
+                // This test case requires two emitted samples to create the instantaneous transition to zero scale.
+                // These samples are always emitted at time and time + 1, so expect visTime + 1 for the second sample.
                 Assert.AreEqual(visTime + 1, result[1].Time);
                 Assert.AreEqual(Vector3.zero, result[1].Scale);
             }
