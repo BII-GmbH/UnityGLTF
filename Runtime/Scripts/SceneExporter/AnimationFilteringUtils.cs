@@ -23,7 +23,6 @@ namespace UnityGLTF
 	    /// </summary>
 	    /// <param name="times">The timestamps of the animations</param>
 	    /// <param name="values">The values of the animation at the timestamp at the corresponding index</param>
-	    /// <returns></returns>
 	    [System.Diagnostics.Contracts.Pure]
 	    public static (IEnumerable<T>, IEnumerable<object>) RemoveUnneededKeyframes<T>(IReadOnlyList<T> times, IReadOnlyList<object> values) {
 		    if (times.Count <= 1) return (times, values);
@@ -119,7 +118,7 @@ namespace UnityGLTF
 		    }
 	    }
 
-	    /// only used by the weird branch of <see cref="RemoveUnneededKeyframes"/> &amp; a workaround for having no IReadOnlyList.Copy method
+	    /// only used by the weird branch of <see cref="RemoveUnneededKeyframes"/> and by a workaround for having no IReadOnlyList.Copy method
 	    private static void copy(IReadOnlyList<object> values, int from, object[] to, int start, int length) {
 		    if(values.Count <= from + length)
 			    throw new IndexOutOfRangeException("The source collection is too small to copy the requested range.");
