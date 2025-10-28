@@ -47,13 +47,11 @@ namespace UnityGLTF.Timeline
             visibilityUpdate.Begin();
             visibilityTrack?.SampleIfChanged(sampleIndex);
             visibilityUpdate.End();
-            
             otherTracks.Begin();
             foreach (var track in tracks) {
                 track.SampleIfChanged(sampleIndex);
             }
             otherTracks.End();
-            
         }
     }
 }
