@@ -8,7 +8,7 @@ namespace Tests.Editor
 
         [Test]
         public void RemoveUnneededKeyframes_WhenSingleElement_ThenNothingHappens() {
-            const float singleTime = 10.0f;
+            const ulong singleTime = 10;
             const int singleValue = 42;
             float[] times = { singleTime };
             object[] values = { singleValue };
@@ -25,7 +25,7 @@ namespace Tests.Editor
 
         [Test]
         public void RemoveUnneededKeyframes_WhenAlreadyOptimal_ThenNothingHappens() {
-            float[] times = { 0, 1, 2, 3, 4, 5, 6 };
+            ulong[] times = { 0, 1, 2, 3, 4, 5, 6 };
             object[] values = { 0, 1, 2, 3, 4, 5, 6 };
             var (retTimes, retValues) = AnimationFilteringUtils.RemoveUnneededKeyframes(times, values);
 
@@ -36,7 +36,7 @@ namespace Tests.Editor
 
         [Test]
         public void RemoveUnneededKeyframes_WhenDoubleRepeatedValues_ThenNothingHappens() {
-            float[] times = { 0, 1, 2, 3, 4, 5, 6 };
+            ulong[] times = { 0, 1, 2, 3, 4, 5, 6 };
             object[] values = { 0, 1, 1, 3, 4, 5, 5 };
             var (retTimes, retValues) = AnimationFilteringUtils.RemoveUnneededKeyframes(times, values);
 
@@ -47,10 +47,10 @@ namespace Tests.Editor
 
         [Test]
         public void RemoveUnneededKeyframes_WhenTripleRepeatedValues_ThenUnnecessaryValuesAreRemoved() {
-            float[] expectedTimes = { 0, 1, 3, 4, 6 };
+            ulong[] expectedTimes = { 0, 1, 3, 4, 6 };
             object[] expectedValues = { 0, 1, 1, 5, 5 };
 
-            float[] times = { 0, 1, 2, 3, 4, 5, 6 };
+            ulong[] times = { 0, 1, 2, 3, 4, 5, 6 };
             object[] values = { 0, 1, 1, 1, 5, 5, 5 };
             var (retTimes, retValues) = AnimationFilteringUtils.RemoveUnneededKeyframes(times, values);
 
@@ -61,10 +61,10 @@ namespace Tests.Editor
 
         [Test]
         public void RemoveUnneededKeyframes_WhenMoreThanThreeRepeatedValues_ThenUnnecessaryValuesAreRemoved() {
-            float[] expectedTimes = { 0, 1, 6 };
+            ulong[] expectedTimes = { 0, 1, 6 };
             object[] expectedValues = { 0, 1, 1 };
 
-            float[] times = { 0, 1, 2, 3, 4, 5, 6 };
+            ulong[] times = { 0, 1, 2, 3, 4, 5, 6 };
             object[] values = { 0, 1, 1, 1, 1, 1, 1 };
             var (retTimes, retValues) = AnimationFilteringUtils.RemoveUnneededKeyframes(times, values);
 
@@ -76,10 +76,10 @@ namespace Tests.Editor
         [Test]
         public void
             RemoveUnneededKeyframes_WhenManyValuesAreSameButIntermittentDifferentValues_ThenOnlyUnnecessaryValuesAreRemoved() {
-            float[] expectedTimes = { 0, 1, 3, 4, 5, 7 };
+            ulong[] expectedTimes = { 0, 1, 3, 4, 5, 7 };
             object[] expectedValues = { 0, 1, 1, 4, 1, 1 };
 
-            float[] times = { 0, 1, 2, 3, 4, 5, 6, 7 };
+            ulong[] times = { 0, 1, 2, 3, 4, 5, 6, 7 };
             object[] values = { 0, 1, 1, 1, 4, 1, 1, 1 };
             var (retTimes, retValues) = AnimationFilteringUtils.RemoveUnneededKeyframes(times, values);
 
@@ -93,7 +93,7 @@ namespace Tests.Editor
         // Test that it does not throw at least
         [Test]
         public void RemoveUnneededKeyframes_WhenLengthDiffers_ThenNoExceptionIsThrown() {
-            float[] times = { 0, 1, 2, 3, 4, 5, 6, 7 };
+            ulong[] times = { 0, 1, 2, 3, 4, 5, 6, 7 };
             object[] values = { 0, 1, 4, 1, 1 };
             Assert.DoesNotThrow(() => _ = AnimationFilteringUtils.RemoveUnneededKeyframes(times, values));
         }
@@ -105,9 +105,10 @@ namespace Tests.Editor
         // identical to the point where integer rounding may return 1.
         [Test]
         public void RemoveUnneededKeyframes_WhenLengthDiffersSlightly_ThenNoExceptionIsThrown() {
-            float[] times   = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+            ulong[] times   = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
             object[] values = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
             Assert.DoesNotThrow(() => _ = AnimationFilteringUtils.RemoveUnneededKeyframes(times, values));
+            
         }
     }
 }
