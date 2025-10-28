@@ -36,7 +36,19 @@ namespace UnityGLTF.Plugins
         public abstract string DisplayName { get; }
         public virtual string Description => null;
         public virtual string HelpUrl => null;
-        public bool Enabled { get; set; } = true;
+        
+        [SerializeField]
+        private bool _enabled = true;
+        public bool Enabled {
+            get => _enabled;
+            set {
+                _enabled = value;
+#if UNITY_EDITOR
+                UnityEditor.EditorUtility.SetDirty(this);
+#endif
+            }
+        }
+
         public virtual bool EnabledByDefault => true;
         public virtual bool AlwaysEnabled => false;
         public virtual string Warning => null;

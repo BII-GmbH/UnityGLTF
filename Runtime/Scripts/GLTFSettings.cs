@@ -152,6 +152,9 @@ namespace UnityGLTF
 			    var dir = Path.GetDirectoryName(k_RuntimeAndEditorSettingsPath);
 			    if (!Directory.Exists(dir)) Directory.CreateDirectory(dir!);
 
+			    // Register plugins for the new settings instance
+			    RegisterPlugins(settings);
+
 			    // we can save it here, but we can't call AssetDatabase.CreateAsset as the importer will complain
 			    UnityEditorInternal.InternalEditorUtility.SaveToSerializedFileAndForget(new UnityEngine.Object[] { settings }, k_RuntimeAndEditorSettingsPath, true);
 
@@ -165,11 +168,11 @@ namespace UnityGLTF
 				    cachedSettings = newSettings;
 			    };
 #else
-				settings = ScriptableObject.CreateInstance<GLTFSettings>();
+			    settings = ScriptableObject.CreateInstance<GLTFSettings>();
+			    // Register plugins for the new settings instance
+			    RegisterPlugins(settings);
 #endif
 		    }
-		    
-		    RegisterPlugins(settings);
 		    
 #if UNITY_EDITOR		    
 		    // save again with plugins attached, if needed - the asset was only created in memory

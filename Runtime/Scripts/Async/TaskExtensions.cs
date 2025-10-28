@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace UnityGLTF
 {
-	public static class TaskExtensions
+	internal static class TaskExtensions
 	{
 		public static IEnumerator AsCoroutine(this Task task)
 		{

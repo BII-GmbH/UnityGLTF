@@ -11,6 +11,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using UnityGLTF.Cache;
 using UnityGLTF.Plugins;
+using Object = UnityEngine.Object;
 
 namespace UnityGLTF
 {
@@ -87,7 +88,7 @@ namespace UnityGLTF
 				EditorGUILayout.LabelField(new GUIContent("Import Extensions and Plugins"), EditorStyles.boldLabel);
 				EditorGUILayout.LabelField(tooltip, EditorStyles.wordWrappedLabel);
 				EditorGUILayout.Space();
-				OnPluginsGUI(settings.ImportPlugins);
+				OnPluginsGUI(settings, settings.ImportPlugins);
 				EditorGUILayout.Space();
 			}
 			else if (m_ActiveEditorIndex == 0)
@@ -96,7 +97,7 @@ namespace UnityGLTF
 				EditorGUILayout.LabelField(new GUIContent("Export Extensions and Plugins"), EditorStyles.boldLabel);
 				EditorGUILayout.LabelField(tooltip, EditorStyles.wordWrappedLabel);
 				EditorGUILayout.Space();
-				OnPluginsGUI(settings.ExportPlugins);
+				OnPluginsGUI(settings, settings.ExportPlugins);
 				EditorGUILayout.Space();
 				
 				var prop = m_SerializedObject.GetIterator();
@@ -149,7 +150,7 @@ namespace UnityGLTF
 
 		private static Dictionary<Type, Editor> editorCache = new Dictionary<Type, Editor>();
 
-		private static void OnPluginsGUI<T>(List<T> plugins, bool allowDisabling = true) where T : GLTFPlugin 
+		private static void OnPluginsGUI<T>(GLTFSettings settingsAsset, List<T> plugins, bool allowDisabling = true) where T : GLTFPlugin 
 		{
 			void drawSinglePlugin(ref string lastAssembly, GLTFPlugin plugin) {
 				var pluginAssembly = plugin.GetType().Assembly.GetName().Name;
@@ -180,7 +181,14 @@ namespace UnityGLTF
 					}
 					else
 					{
-						plugin.Enabled = GUILayout.Toggle(plugin.Enabled, "", GUILayout.Width(12));
+						EditorGUI.BeginChangeCheck();
+						var newEnabled = GUILayout.Toggle(plugin.Enabled, "", GUILayout.Width(12));
+						if (EditorGUI.EndChangeCheck())
+						{
+							plugin.Enabled = newEnabled;
+							EditorUtility.SetDirty(plugin);
+							AssetDatabase.SaveAssets();
+						}
 					}
 
 					var label = new GUIContent(displayName, plugin.Description);
@@ -255,16 +263,45 @@ namespace UnityGLTF
 			if (GUILayout.Button("Search for plugins in codebase")) {
 				var newPlugins = createAllFoundPluginsForPluginType<T>()
 					.Where(newPlugin => newPlugin && plugins.All(existingPlugin =>  !existingPlugin || newPlugin.GetType() != existingPlugin.GetType())); 
+				var pluginsAdded = false;
 				foreach (var newPlugin in newPlugins) {
 					plugins.Add(newPlugin);
+#if UNITY_EDITOR
+					pluginsAdded = true;
+					AssetDatabase.AddObjectToAsset(newPlugin, settingsAsset);
+#endif
+				}
+				
+				if (pluginsAdded)
+				{
+					EditorUtility.SetDirty(settingsAsset);
+					AssetDatabase.SaveAssets();
 				}
 			}
 			if (GUILayout.Button("Remove disabled entries")) {
 				
 				// reverse so removing does not invalidate later indices. allocate to avoid concurrent modification exception
+				var pluginsRemoved = false;
 				foreach (var (plugin, index) in plugins.Select((p, index) => (p, index)).Reverse().ToArray()) {
 					if(!plugin || (!plugin.AlwaysEnabled && !plugin.Enabled))
+					{
 						plugins.RemoveAt(index);
+						pluginsRemoved = true;
+#if UNITY_EDITOR
+						// Remove the plugin sub-asset
+						if (plugin && AssetDatabase.Contains(plugin))
+						{
+							AssetDatabase.RemoveObjectFromAsset(plugin);
+							Object.DestroyImmediate(plugin);
+						}
+#endif
+					}
+				}
+				
+				if (pluginsRemoved)
+				{
+					EditorUtility.SetDirty(settingsAsset);
+					AssetDatabase.SaveAssets();
 				}
 			}
 			
