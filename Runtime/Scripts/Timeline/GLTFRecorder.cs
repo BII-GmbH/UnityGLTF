@@ -509,8 +509,8 @@ namespace UnityGLTF.Timeline
 				}
 			}
 			
-			// var (filteredTimes, filteredValues) = AnimationFilteringUtils.RemoveUnneededKeyframes(trackSampleNumbers, trackValues);
-			// (trackSampleNumbers, trackValues) = (filteredTimes.ToArray(), filteredValues.ToArray());
+			var (filteredTimes, filteredValues) = AnimationFilteringUtils.RemoveUnneededKeyframes(trackSampleNumbers, trackValues);
+			(trackSampleNumbers, trackValues) = (filteredTimes.ToArray(), filteredValues.ToArray());
 			
 			var trackTimes = trackSampleNumbers.Select(sid => (float) sampleIndexToTimeOffset(sid).TotalSeconds).ToArray();
 			gltfSceneExporter.AddAnimationData(trackTargetTransform, track.AnimatedObjectUntyped, track.PropertyName, animation, track.InterpolationType, trackTimes, trackValues);
@@ -526,24 +526,6 @@ namespace UnityGLTF.Timeline
 			
 			var outTimes = new List<ulong>();
 			var outScale = new List<Vector3>();
-			
-			for (var vi = 0; vi < inTimes.Length; vi++) {
-				var time = inTimes[vi];
-				var value = visibilityTrack.Values[vi];
-
-				//if (value != lastVis) {
-				if (vi > 0 && inTimes[vi - 1] < time - 1) {
-					outScale.Add(inValues[vi-1] ? Vector3.one : Vector3.zero);
-					outTimes.Add(time - 1);
-				}
-				// else {
-				// 	// if lastTime == time - 1 we have a problem
-				// 	throw new Exception("Uh OH");
-				// }
-				
-				outScale.Add(value ? Vector3.one : Vector3.zero);
-				outTimes.Add(time);
-			}
 			
 			for (var vi = 0; vi < inTimes.Length; vi++) {
 				var time = inTimes[vi];

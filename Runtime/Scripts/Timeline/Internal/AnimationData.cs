@@ -47,14 +47,13 @@ namespace UnityGLTF.Timeline
             visibilityUpdate.Begin();
             visibilityTrack?.SampleIfChanged(sampleIndex);
             visibilityUpdate.End();
-            // if visibility is not being sampled, or the object is currently visible, sample the other tracks
-            //if (visibilityTrack == null || (visibilityTrack.HasLastValue && visibilityTrack.LastValue)) {
-                otherTracks.Begin();
-                foreach (var track in tracks) {
-                    track.SampleIfChanged(sampleIndex);
-                }
-                otherTracks.End();
-            //}
+            
+            otherTracks.Begin();
+            foreach (var track in tracks) {
+                track.SampleIfChanged(sampleIndex);
+            }
+            otherTracks.End();
+            
         }
     }
 }
