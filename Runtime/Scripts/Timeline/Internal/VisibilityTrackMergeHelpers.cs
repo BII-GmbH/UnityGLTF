@@ -334,7 +334,6 @@ namespace UnityGLTF.Timeline
         }
         
         public MergeVisibilityAndScaleTrackMerger(
-            TimeSpan animationStepTime,
             ulong[] inputVisibilityTimes,
             bool[] inputVisibilities,
             ulong[] inputScaleTimes,

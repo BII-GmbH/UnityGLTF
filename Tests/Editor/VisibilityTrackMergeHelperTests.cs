@@ -12,8 +12,6 @@ namespace Tests.Editor
 
         public class MergeTests
         {
-            private static readonly TimeSpan sampleTimeStep = TimeSpan.FromMilliseconds(100);
-            
             private static void assertSequenceEqual((ulong Time, Vector3 Scale)[] expected, (ulong Time, Vector3 Scale)[] gotten) {
                 
                 Assert.AreEqual(
@@ -63,7 +61,7 @@ namespace Tests.Editor
                     (10ul, scale)
                 };
                 
-                var uut = new MergeVisibilityAndScaleTrackMerger(animationStepTime: sampleTimeStep, visTimes, visValues, scaleTimes, scaleValues);
+                var uut = new MergeVisibilityAndScaleTrackMerger(visTimes, visValues, scaleTimes, scaleValues);
 
                 var gotten = uut.Merge().ToArray();
                 assertSequenceEqual(expectedResult, gotten);
@@ -94,7 +92,7 @@ namespace Tests.Editor
                     (2, Vector3.zero)
                 };
                 
-                var uut = new MergeVisibilityAndScaleTrackMerger(sampleTimeStep, visTimes, visValues, scaleTimes, scaleValues);
+                var uut = new MergeVisibilityAndScaleTrackMerger(visTimes, visValues, scaleTimes, scaleValues);
 
                 assertSequenceEqual(expectedResult, uut.Merge().ToArray());
             }
@@ -127,7 +125,7 @@ namespace Tests.Editor
                     (10, new Vector3(5,5,5)),
                 };
                 
-                var uut = new MergeVisibilityAndScaleTrackMerger(sampleTimeStep, visTimes, visValues, scaleTimes, scaleValues);
+                var uut = new MergeVisibilityAndScaleTrackMerger(visTimes, visValues, scaleTimes, scaleValues);
                 
                 var gotten = uut.Merge().ToArray();
                 assertSequenceEqual(expectedResult, gotten);
@@ -162,7 +160,7 @@ namespace Tests.Editor
                     (10, new Vector3(5,5,5)),
                 };
                 
-                var uut = new MergeVisibilityAndScaleTrackMerger(sampleTimeStep, visTimes, visValues, scaleTimes, scaleValues);
+                var uut = new MergeVisibilityAndScaleTrackMerger(visTimes, visValues, scaleTimes, scaleValues);
 
                 assertSequenceEqual(expectedResult, uut.Merge().ToArray());
             }
@@ -233,8 +231,8 @@ namespace Tests.Editor
                 };
                 
                 
-                var uut1 = new MergeVisibilityAndScaleTrackMerger(sampleTimeStep, visTimes, visValues1, scaleTimes, scaleValues);
-                var uut2 = new MergeVisibilityAndScaleTrackMerger(sampleTimeStep, visTimes, visValues2, scaleTimes, scaleValues);
+                var uut1 = new MergeVisibilityAndScaleTrackMerger(visTimes, visValues1, scaleTimes, scaleValues);
+                var uut2 = new MergeVisibilityAndScaleTrackMerger(visTimes, visValues2, scaleTimes, scaleValues);
 
                 assertSequenceEqual(expectedResult1, uut1.Merge().ToArray());
                 assertSequenceEqual(expectedResult2, uut2.Merge().ToArray());
@@ -284,7 +282,7 @@ namespace Tests.Editor
                     (10, new Vector3(6,6,6)),
                 };
                 
-                var uut1 = new MergeVisibilityAndScaleTrackMerger(sampleTimeStep, visTimes, visValues1, scaleTimes, scaleValues);
+                var uut1 = new MergeVisibilityAndScaleTrackMerger(visTimes, visValues1, scaleTimes, scaleValues);
 
                 assertSequenceEqual(expectedResult1, uut1.Merge().ToArray());
             }
@@ -337,7 +335,7 @@ namespace Tests.Editor
                     (10, new Vector3(0,0,0)),
                 };
                 
-                var uut1 = new MergeVisibilityAndScaleTrackMerger(sampleTimeStep, visTimes, visValues1, scaleTimes, scaleValues);
+                var uut1 = new MergeVisibilityAndScaleTrackMerger(visTimes, visValues1, scaleTimes, scaleValues);
 
                 assertSequenceEqual(expectedResult1, uut1.Merge().ToArray());
             }

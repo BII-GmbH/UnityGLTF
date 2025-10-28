@@ -544,12 +544,6 @@ namespace UnityGLTF.Timeline
 				outScale.Add(value ? Vector3.one : Vector3.zero);
 				outTimes.Add(time);
 			}
-			//
-			// var inTimes = visibilityTrack.Times;
-			// var inValues = visibilityTrack.Values;
-			
-			var outTimes = new List<ulong>();
-			// var outScale = new List<Vector3>();
 			
 			for (var vi = 0; vi < inTimes.Length; vi++) {
 				var time = inTimes[vi];
@@ -578,7 +572,6 @@ namespace UnityGLTF.Timeline
 			// both tracks are present, need to merge, but visibility always takes precedence
 
 			var currentState = new MergeVisibilityAndScaleTrackMerger(
-				animationSampleStepTime,
 				visibilityTrack.Times,
 				visibilityTrack.Values,
 				scaleTrack.Times,

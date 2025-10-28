@@ -95,9 +95,9 @@ namespace UnityGLTF
 			var prewarm = rigs.Length > 0 && clip.isLooping;
 			if (prewarm)
 			{
-				while (time + timeStep < length)
+				while (time + 1 < frameCount)
 				{
-					time += timeStep;
+					time += 1;
 					foreach (var rig in rigs) rig.UpdatePreviewGraph(playableGraph);
 					AnimationMode.SamplePlayableGraph(playableGraph, 0, time);
 				}
