@@ -26,7 +26,9 @@ namespace UnityGLTF
 #if ANIMATION_SUPPORTED
 		internal void CollectClipCurvesBySampling(GameObject root, AnimationClip clip, Dictionary<string, TargetCurveSet> targetCurves)
 		{
-			var recorder = new GLTFRecorder(root.transform, _ => false, false, false);
+			var timeStep = TimeSpan.FromMilliseconds(1000.0/30);
+			
+			var recorder = new GLTFRecorder(root.transform, _ => false, timeStep, TimeSpan.Zero, false, false);
 
 			var playableGraph = PlayableGraph.Create();
 			var animationClipPlayable = (Playable) AnimationClipPlayable.Create(playableGraph, clip);
@@ -52,7 +54,7 @@ namespace UnityGLTF
 			playableOutput.SetSourcePlayable(animationClipPlayable);
 			playableGraph.SetTimeUpdateMode(DirectorUpdateMode.Manual);
 
-			var timeStep = TimeSpan.FromMilliseconds(1000.0/30);
+			
 			var frameCount = (ulong) Math.Ceiling(clip.length / timeStep.TotalSeconds);
 			var time = 0ul;
 
@@ -104,7 +106,7 @@ namespace UnityGLTF
 				time = 0;
 			}
 			
-			recorder.StartRecording(fixedAnimationSampleRate: timeStep, animationStartOffset: time * timeStep);
+			recorder.StartRecording();
 
 			while (time + 1 < frameCount)
 			{
@@ -145,7 +147,7 @@ namespace UnityGLTF
 			Undo.FlushUndoRecordObjects();
 			Undo.PerformUndo();
 
-			recorder.endRecording(out var data);
+			var data = recorder.endRecordingAndGetAnimationTracks();
 			if (data == null || !data.Any()) return;
 
 			string CalculatePath(Transform child, Transform parent)

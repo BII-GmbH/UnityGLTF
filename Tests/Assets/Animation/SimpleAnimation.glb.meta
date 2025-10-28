@@ -37,13 +37,15 @@ ScriptedImporter:
   _textureCompression: -50
   optimizeGameObjects: 0
   materials:
-  - {fileID: 3297912226980038121, guid: 941ea53b9d7aafa4886b8bdd2c0f2963, type: 3}
+  - {instanceID: 0}
   textures: []
   hasSceneData: 1
   hasAnimationData: 1
   hasMaterialData: 1
   hasTextureData: 0
-  animations: []
+  animations:
+  - name: AnimationA
+  - name: AnimationB
   _extensions: []
   _textures: []
   _mainAssetIdentifier: scenes/SimpleAnimation

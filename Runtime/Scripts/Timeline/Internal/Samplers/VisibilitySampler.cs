@@ -15,8 +15,25 @@ namespace UnityGLTF.Timeline.Samplers
 
         public override IEqualityComparer<bool> DataComparer => EqualityComparer<bool>.Default;
 
-        internal VisibilityTrack startNewAnimationTrackAtStartOfTime(AnimationData data, ulong time) =>
-            new VisibilityTrack(data, this, time);
+        internal VisibilityTrack startNewAnimationTrackAt(AnimationData data, ulong time) {
+            // pass null as time here to force manual initial sample recording
+            var track = new VisibilityTrack(data, this, time: null);
+            
+            
+            if(time == 0)
+                track.SampleIfChanged(0);
+            else {
+                // we are not at the start of time when starting this track, so the thing is invisible until the current time.
+                // We need to add the samples for that
+                track.recordVisibilityAt(0, false);
+                // if time == 1 the first frame it would be invisible and interpolate to visible at time 1. We dont need an additional sample in this case
+                if(time > 1)
+                    track.recordVisibilityAt(time - 1, false);
+                track.SampleIfChanged(time);
+            }
+
+            return track;
+        }
 
         internal override GameObject getTarget(Transform transform) {
             if (!transform) 
@@ -30,11 +47,8 @@ namespace UnityGLTF.Timeline.Samplers
 
     internal sealed class VisibilityTrack : BaseAnimationTrack<GameObject, bool>
     {
-        public VisibilityTrack(AnimationData tr, VisibilitySampler plan, ulong time) :
-            base(tr, plan, time, plan.DataComparer, objectVisibility => {
-                var overridenVisibility = time <= 0 && objectVisibility;
-                return overridenVisibility;
-            }) { }
+        public VisibilityTrack(AnimationData tr, VisibilitySampler plan, ulong? time) :
+            base(tr, plan, time, plan.DataComparer) { }
 
         internal void recordVisibilityAt(ulong time, bool visible) => recordSampleIfChanged(time, visible);
     }

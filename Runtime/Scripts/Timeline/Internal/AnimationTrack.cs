@@ -72,15 +72,13 @@ namespace UnityGLTF.Timeline
         private TData? secondToLastValue => samples.Count > 1 ? samples[^2].Value : default;
         private bool hasSecondToLastValue => samples.Count > 1;
         
-        protected BaseAnimationTrack(AnimationData tr, AnimationSampler<TObject, TData> plan, ulong time, IEqualityComparer<TData> dataComparer, Func<TData?, TData?>? overrideInitialValueFunc = null) {
+        protected BaseAnimationTrack(AnimationData tr, AnimationSampler<TObject, TData> plan, ulong? time, IEqualityComparer<TData> dataComparer) {
             this.animationData = tr;
             this.sampler = plan;
             this.dataComparer = dataComparer;
             samples = new List<(ulong, TData)>();
-            if(overrideInitialValueFunc != null)
-                recordSampleIfChanged(time, overrideInitialValueFunc(sampler.sample(animationData)));
-            else 
-                SampleIfChanged(time);
+            if(time != null)
+                SampleIfChanged(time.Value);
             
             recordSampleIfChangedMarker = new ProfilerMarker($"BaseAnimationTrack<{typeof(TObject).Name}, {typeof(TData).Name}> - recordSampleIfChanged"); 
         }
