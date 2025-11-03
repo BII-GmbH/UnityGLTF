@@ -26,9 +26,19 @@ namespace UnityGLTF
 #if ANIMATION_SUPPORTED
 		internal void CollectClipCurvesBySampling(GameObject root, AnimationClip clip, Dictionary<string, TargetCurveSet> targetCurves)
 		{
+			// This code used 30 FPS before, so keep it at 30 FPS.
+			// We do not use this code inside dprob at all so we really do not care.
+			// This code is only relevant for exporting unity animation components from inside the Unity Editor.
 			var timeStep = TimeSpan.FromMilliseconds(1000.0/30);
-			
-			var recorder = new GLTFRecorder(root.transform, _ => false, timeStep, TimeSpan.Zero, false, false);
+
+			var recorder = new GLTFRecorder(
+				root.transform,
+				recordTransformInWorldSpace: _ => false,
+				animationTimeStep: timeStep,
+				animationStartOffset: TimeSpan.Zero,
+				recordBlendShapes: false,
+				recordAnimationPointer: false
+			);
 
 			var playableGraph = PlayableGraph.Create();
 			var animationClipPlayable = (Playable) AnimationClipPlayable.Create(playableGraph, clip);

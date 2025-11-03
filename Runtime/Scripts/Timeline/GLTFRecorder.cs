@@ -478,7 +478,7 @@ namespace UnityGLTF.Timeline
 				var result = mergeVisibilityAndScaleTracks(visibilityTrack, scaleTrack);
 				if (result == null) return;
 				
-				trackSampleNumbers = result!.Value.times;
+				trackSampleNumbers = result!.Value.times.ToArray();
 				trackValues = result!.Value.mergedScales.Cast<object>().ToArray();
 			}
 
@@ -517,7 +517,7 @@ namespace UnityGLTF.Timeline
 		}
 
 		/// use this only if you only have a visibility track, no scale, otherwise use <see cref="mergeVisibilityAndScaleTracks"/> instead to merge the two 
-		internal static (AnimationInterpolationType interpolation, ulong[] times, Vector3[] mergedScales)
+		internal static (AnimationInterpolationType interpolation, IEnumerable<ulong> times, IEnumerable<Vector3> mergedScales)
 			visibilityTrackToScaleTrack(AnimationTrack<GameObject, bool> visibilityTrack) {
 
 			
@@ -539,10 +539,10 @@ namespace UnityGLTF.Timeline
 				outScale.Add(value ? Vector3.one : Vector3.zero);
 				outTimes.Add(time);
 			}
-			return (AnimationInterpolationType.LINEAR, outTimes.ToArray(), outScale.ToArray());
+			return (AnimationInterpolationType.LINEAR, outTimes, outScale);
 		}
 
-		internal static (AnimationInterpolationType interpolation, ulong[] times, Vector3[] mergedScales)?
+		internal static (AnimationInterpolationType interpolation, IEnumerable<ulong> times, IEnumerable<Vector3> mergedScales)?
 			mergeVisibilityAndScaleTracks(
 				AnimationTrack<GameObject, bool>? visibilityTrack,
 				AnimationTrack<Transform, Vector3>? scaleTrack
@@ -562,8 +562,8 @@ namespace UnityGLTF.Timeline
 			var merged = currentState.Merge().ToArray();
 			
 			// process both
-			return (scaleTrack.InterpolationType, merged.Select(t => t.Time).ToArray(),
-				merged.Select(t => t.mergedScale).ToArray());
+			return (scaleTrack.InterpolationType, merged.Select(t => t.Time),
+				merged.Select(t => t.mergedScale));
 		}
 
 		private class StringBuilderLogHandler : ILogHandler

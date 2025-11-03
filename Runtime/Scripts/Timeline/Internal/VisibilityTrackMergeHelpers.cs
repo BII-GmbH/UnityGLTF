@@ -38,7 +38,17 @@ namespace UnityGLTF.Timeline
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void incrementScaleIndex() => scaleIndex++;
 
-        private static (ulong InsertedSample, ulong NormalSample) chooseSampleIndicesForInserted(ulong insertBeforeThisSample) => 
+        /// <summary>
+        /// Returns the sample indices to use when inserting value changes that require two samples (i.e. visibility changes)
+        /// </summary>
+        /// <remarks>
+        /// The logic of this file is much simpler if we choose to insert additional samples
+        /// at time T and T+1 instead of T-1 and T so that is what this method does.
+        /// This is due to the fact that we cannot have negative time values, so T-1
+        /// would not be possible for time 0 samples.
+        /// Additionally, we need to replace an already written sample in fewer cases.
+        /// </remarks>
+        private static (ulong OldValueSample, ulong NewValueSample) chooseSampleIndicesForInserted(ulong insertBeforeThisSample) => 
             (insertBeforeThisSample, insertBeforeThisSample + 1);
 
         public IEnumerable<(ulong Time, Vector3 mergedScale)> Merge() {
@@ -75,13 +85,12 @@ namespace UnityGLTF.Timeline
                     incrementScaleIndex();
                 }
                 else if (visTime < scaleTime) {
-                    // safety check to ensure that a sample a time 0 is set correctly
+                    // safety check to ensure that a sample at time 0 is set correctly
                     var emittedExtraSample = false;
 
                     if(visTime == 0) {
                         result.Add((0, visible ? (lastScale ?? scale) : Vector3.zero));
-                    }
-                    else {
+                    } else {
                         mergedSamplesForNextVisibilityChange(
                             result,
                             visTime,
@@ -106,26 +115,8 @@ namespace UnityGLTF.Timeline
                     incrementVisIndex();
                 } else if (scaleTime < visTime) {
                     // the next scale change occurs sooner than the next visibility change
-                    // However, if the model is currently invisible, we simply don't care
-                    if (lastVisible ?? visible) {
-                        // special edge case: the last sample was a visibility change that emitted an
-                        // additional sample that now conflicts with our own sample
-                        // since it cannot know the correct scale value ahead of time,
-                        // so update the last emitted value instead of emitting a new one
-                        if (lastRecordedTime == scaleTime && scaleTime > 0) {
-                            result[^1] = (scaleTime, scale);
-                        }
-                        else {
-                            result.Add((scaleTime, scale));
-                        }
-                    }
-                    else {
-                        // both are invisible, use 0. 
-                        // We could also skip this sample, but for consistency we keep it.
-                        
-                        adjustLastSampleOrEmitNew(result, lastRecordedTime, scaleTime, Vector3.zero);
-                    }
-
+                    // For consistency & simplicity, even if the model is currently invisible, we still record the sample
+                    adjustLastSampleOrEmitNew(result, lastRecordedTime, scaleTime, (lastVisible ?? visible) ? scale : Vector3.zero);
                     lastRecordedTime = scaleTime;
                     incrementScaleIndex();
                 }
@@ -138,9 +129,9 @@ namespace UnityGLTF.Timeline
                 if (lastVisible != visible) {
                     // if the value flipped, this needs two samples - one for
                     // the previous value and then another one at the new value
-                    var (insertedSample, visSample) = chooseSampleIndicesForInserted(visTime);
-                    result.Add((insertedSample, (lastVisible ?? visible) ? (lastScale ?? Vector3.one) : Vector3.zero));
-                    result.Add((visSample, visible ? (lastScale ?? Vector3.one) : Vector3.zero));
+                    var (oldVisSample, newVisSample) = chooseSampleIndicesForInserted(visTime);
+                    result.Add((oldVisSample, (lastVisible ?? visible) ? (lastScale ?? Vector3.one) : Vector3.zero));
+                    result.Add((newVisSample, visible ? (lastScale ?? Vector3.one) : Vector3.zero));
                 } else {
                     // always record one of them, otherwise the first or last values may be lost
                     result.Add((visTime, visible ? (lastScale ?? Vector3.one) : Vector3.zero));
@@ -178,13 +169,13 @@ namespace UnityGLTF.Timeline
                 case (true, false):
                     // visibility changed from visible to invisible
                     // use last scale value
-                    if (time > 0) {
-                        emittedExtraSample = true;
-                        var (insertedSample, timeSample) = chooseSampleIndicesForInserted(time);
-                        resultList.Add( (insertedSample, scale));
-                        resultList.Add( (timeSample, Vector3.zero));
-                    } else {
+                    if (time == 0) {
                         resultList.Add( (0, Vector3.zero));
+                    } else {   
+                        emittedExtraSample = true;
+                        var (oldVisSample, newVisSample) = chooseSampleIndicesForInserted(time);
+                        resultList.Add( (oldVisSample, scale));
+                        resultList.Add( (newVisSample, Vector3.zero));
                     }
                         
                     break;
@@ -202,14 +193,14 @@ namespace UnityGLTF.Timeline
                 case (false, true):
                     // visibility changed from invisible to visible
                     // use scale value
-                    if (time > 0) {
+                    if (time == 0) {
+                        resultList.Add( (0, scale));
+                    } else {
                         emittedExtraSample = true;
                         var (insertedInvisibleSample, visibleSample) = chooseSampleIndicesForInserted(time);
                         
                         resultList.Add( (insertedInvisibleSample, Vector3.zero));
                         resultList.Add( (visibleSample, scale));
-                    } else {
-                        resultList.Add( (0, scale));
                     }
                     break;
             }
@@ -252,16 +243,16 @@ namespace UnityGLTF.Timeline
                     // visibility changed from visible to invisible
                     // use last scale value
                     emittedExtraSample = true;
-                    var (insertedTime, sampleTime) = chooseSampleIndicesForInserted(
+                    var (oldVisSample, newVisSample) = chooseSampleIndicesForInserted(
                         visTime
                     );
-                    resultList.Add( (insertedTime, Vector3.LerpUnclamped(
+                    resultList.Add( (oldVisSample, Vector3.LerpUnclamped(
                         lastScale,
                         nextScale,
                         // do the math as double for higher precision and reduce to float when necessary
                         (float)((visTime - lastScaleTime) / (double)(nextScaleTime - lastScaleTime))
                     )));
-                    resultList.Add( (sampleTime, Vector3.zero));
+                    resultList.Add( (newVisSample, Vector3.zero));
                     break;
                 }
                 case (true, true):
@@ -283,12 +274,12 @@ namespace UnityGLTF.Timeline
                     emittedExtraSample = true;
                     // visibility changed from invisible to visible
                     // use scale value
-                    var (insertedTime, sampleTime) = chooseSampleIndicesForInserted(
+                    var (oldVisSample, newVisSample) = chooseSampleIndicesForInserted(
                         visTime
                     );
 
-                    resultList.Add( (insertedTime, Vector3.zero));
-                    resultList.Add( (sampleTime, Vector3.LerpUnclamped(
+                    resultList.Add( (oldVisSample, Vector3.zero));
+                    resultList.Add( (newVisSample, Vector3.LerpUnclamped(
                         lastScale,
                         nextScale,
                         // do the math as double for higher precision and reduce to float when necessary

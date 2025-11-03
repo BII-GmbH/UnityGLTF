@@ -61,7 +61,12 @@ namespace UnityGLTF
 			recorder = new GLTFRecorder(
 				exportRoot,
 				recordTransformInWorldSpace: tr => recordRootInWorldSpace && tr == exportRoot,
-				animationTimeStep: TimeSpan.FromMilliseconds(20),
+				// The animation is automatically resampled upon export. 
+				// Choose 30 FPS here to match `ExporterAnimationHumanoid`.
+				//
+				// We do not use this code inside dprob at all so we really do not care.
+				// This code is only relevant for exporting unity animation components from inside the Unity Editor.
+				animationTimeStep: TimeSpan.FromMilliseconds(1000/30.0),
 				animationStartOffset: CurrentTime,
 				recordBlendShapes: shouldRecordBlendShapes, 
 				recordAnimationPointer: shouldUseAnimationPointer,
