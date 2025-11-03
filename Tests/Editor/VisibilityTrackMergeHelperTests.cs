@@ -168,15 +168,12 @@ namespace Tests.Editor
                 assertSequenceEqual(expectedResult, uut.Merge().ToArray());
             }
             
-            [Test] public void IfVisibilityStartsAfterScale_FirstVisibilityIsUsed() {
+            [Test] public void IfVisibilityStartsInvisibleAfterScale_TheResultStartsInvisible() {
              
                 //               0  1  2  3  4  5  6  7  8  9  10
                 //               |  |  |  |  |  |  |  |  |  |  |
-                //  V1 1.0 -|    -     -     -  x--------------x
+                //   V 1.0 -|    -     -     -  x--------------x
                 //     0.0 -|    -     -  x-----   -     -     -
-            
-                //  V2 1.0 -|    -     -  x-----   -     -     -
-                //     0.0 -|    -     -        x  -     -     -
             
                 //   S 8.0 -|    -     -     -  x__-     -     -
                 //     6.0 -|             x--/     \-----x------ 
@@ -185,13 +182,56 @@ namespace Tests.Editor
                 //     0.0 -|         
             
                 // Res 8.0 -|    -     -     -     x____\-     -
-                //  1  6.0 -|                     /      x-----x 
+                //     6.0 -|                     /      x-----x 
                 //     4.0 -|                    /
                 //     2.0 -|                    |
                 //     0.0 -|    x-----x--x-----x
+                
+                var scaleTimes = new ulong[] {
+                    0, 2, 3, 5, 8
+                };
+                
+                var scaleValues = new Vector3[] {
+                    new (2,2,2),
+                    new (4,4,4),
+                    new (6,6,6),
+                    new (8,8,8),
+                    new (6,6,6),
+                };
+                var visTimes = new ulong[] {
+                    3, 5, 10
+                };
+                var visValues = new[] { false, true, true };
+                
+                var expectedResult = new (ulong Time, Vector3 Scale)[] {
+                    ( 0, Vector3.zero),
+                    ( 2, Vector3.zero),          
+                    ( 3, Vector3.zero),          
+                    ( 5, Vector3.zero),          
+                    ( 6, new Vector3(8,8,8)),
+                    ( 8, new Vector3(6,6,6)),
+                    (10, new Vector3(6,6,6)),
+                };
+                
+                var uut = new MergeVisibilityAndScaleTrackMerger(visTimes, visValues, scaleTimes, scaleValues);
+                assertSequenceEqual(expectedResult, uut.Merge().ToArray());
+            }
+            
+            [Test] public void IfVisibilityStartsVisibleAfterScale_TheResultStartsVisible() {
+             
+                //               0  1  2  3  4  5  6  7  8  9  10
+                //               |  |  |  |  |  |  |  |  |  |  |
+                //   V 1.0 -|    -     -  x-----x--------------x
+                //     0.0 -|    -     -           -     -     -
+            
+                //   S 8.0 -|    -     -     -  x__-     -     -
+                //     6.0 -|             x--/     \-----x------ 
+                //     4.0 -|          x
+                //     2.0 -|    x---/
+                //     0.0 -|         
             
                 // Res 8.0 -|    -     -     -  x__-     -     -
-                //  2  6.0 -|             x--/     \-----x-----x 
+                //     6.0 -|             x--/     \-----x-----x 
                 //     4.0 -|          x
                 //     2.0 -|    x---/
                 //     0.0 -|         
@@ -211,22 +251,10 @@ namespace Tests.Editor
                 var visTimes = new ulong[] {
                     3, 5, 10
                 };
-                // since vis only has two potential value, it is much more likely that the implementation 
-                // would still pass this test even if the value is hardcoded - avoid that by testing
-                // both possibilities pass
-                var visValues1 = new[] { false, true, true };
-                var visValues2 = new[] { true, true, true };
                 
-                var expectedResult1 = new (ulong Time, Vector3 Scale)[] {
-                    ( 0, Vector3.zero),
-                    ( 2, Vector3.zero),          
-                    ( 3, Vector3.zero),          
-                    ( 5, Vector3.zero),          
-                    ( 6, new Vector3(8,8,8)),
-                    ( 8, new Vector3(6,6,6)),
-                    (10, new Vector3(6,6,6)),
-                };
-                var expectedResult2 = new (ulong Time, Vector3 Scale)[] {
+                var visValues = new[] { true, true, true };
+                
+                var expectedResult = new (ulong Time, Vector3 Scale)[] {
                     ( 0,  new Vector3(2,2,2)),
                     ( 2, new Vector3(4,4,4)),
                     ( 3, new Vector3(6,6,6)),
@@ -235,12 +263,8 @@ namespace Tests.Editor
                     (10, new Vector3(6,6,6)),
                 };
                 
-                
-                var uut1 = new MergeVisibilityAndScaleTrackMerger(visTimes, visValues1, scaleTimes, scaleValues);
-                var uut2 = new MergeVisibilityAndScaleTrackMerger(visTimes, visValues2, scaleTimes, scaleValues);
-
-                assertSequenceEqual(expectedResult1, uut1.Merge().ToArray());
-                assertSequenceEqual(expectedResult2, uut2.Merge().ToArray());
+                var uut = new MergeVisibilityAndScaleTrackMerger(visTimes, visValues, scaleTimes, scaleValues);
+                assertSequenceEqual(expectedResult, uut.Merge().ToArray());
             }
             
             

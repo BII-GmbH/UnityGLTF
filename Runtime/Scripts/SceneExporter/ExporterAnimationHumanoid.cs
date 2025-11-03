@@ -52,6 +52,9 @@ namespace UnityGLTF
 			playableOutput.SetSourcePlayable(animationClipPlayable);
 			playableGraph.SetTimeUpdateMode(DirectorUpdateMode.Manual);
 
+			// This code used 30 FPS before, so keep it at 30 FPS.
+			// We do not use this code inside dprob at all so we really do not care.
+			// This code is only relevant for exporting unity animation components from inside the Unity Editor.
 			var timeStep = TimeSpan.FromMilliseconds(1000.0/30);
 			var frameCount = (ulong) Math.Ceiling(clip.length / timeStep.TotalSeconds);
 			var time = 0ul;
