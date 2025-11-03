@@ -794,14 +794,15 @@ namespace UnityGLTF
 		/// into the final glb afterwards. 
 		/// </summary>
 		/// <param name="finalOutStream">the final output stream</param>
-		/// <param name="binaryTempStream">temporary stream to write binary data to. Has to be resettable & support for .Length is required. FileStream is recommended</param>
-		/// <param name="jsonTempStream">temporary stream to write json data to. Has to be resettable & support for .Length is required. FileStream is recommended</param>
+		/// <param name="binaryTempStream">temporary stream to write binary data to. Has to be resettable and support for .Length is required. FileStream is recommended</param>
+		/// <param name="jsonTempStream">temporary stream to write json data to. Has to be resettable and support for .Length is required. FileStream is recommended</param>
 		/// <param name="sceneName"></param>
 		public async Task WriteGlbToStreamWithTemporaryStreams(
 			Stream finalOutStream,
 			Stream binaryTempStream,
 			Stream jsonTempStream,
-			string sceneName) {
+			string sceneName
+		) {
 			// has to be on the main thread, because unity
 			var (binStream, jsonStream) = serializeToStreams(sceneName, binaryTempStream, jsonTempStream);
 			await Task.Run(() => writeGLBToStream(finalOutStream, binStream, jsonStream));
