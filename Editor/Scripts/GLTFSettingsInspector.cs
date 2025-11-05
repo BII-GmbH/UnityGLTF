@@ -266,10 +266,8 @@ namespace UnityGLTF
 				var pluginsAdded = false;
 				foreach (var newPlugin in newPlugins) {
 					plugins.Add(newPlugin);
-#if UNITY_EDITOR
 					pluginsAdded = true;
 					AssetDatabase.AddObjectToAsset(newPlugin, settingsAsset);
-#endif
 				}
 				
 				if (pluginsAdded)
@@ -287,14 +285,12 @@ namespace UnityGLTF
 					{
 						plugins.RemoveAt(index);
 						pluginsRemoved = true;
-#if UNITY_EDITOR
 						// Remove the plugin sub-asset
 						if (plugin && AssetDatabase.Contains(plugin))
 						{
 							AssetDatabase.RemoveObjectFromAsset(plugin);
 							Object.DestroyImmediate(plugin);
 						}
-#endif
 					}
 				}
 				

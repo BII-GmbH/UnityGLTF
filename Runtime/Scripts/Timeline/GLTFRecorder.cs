@@ -95,23 +95,18 @@ namespace UnityGLTF.Timeline
 		{
 			private RecorderState() { }
 
-			public sealed class NotRecording : RecorderState
-			{
-				
-			}
+			public sealed class NotRecording : RecorderState { }
 
-			/// 
 			public sealed class CurrentlyRecording : RecorderState
 			{
-				/// <param name="OnlyRecordTheseTransforms">
-				/// Optionally assign a list of transforms to be recorded, other transforms will be ignored
-				/// </param>
-				public CurrentlyRecording(ulong LastRecordedSampleNumber,
-					Dictionary<Transform, AnimationData> CurrentlyRecordingTransforms,
-					List<Transform> TransformCache) {
-					this.LastRecordedSampleNumber = LastRecordedSampleNumber;
-					this.CurrentlyRecordingTransforms = CurrentlyRecordingTransforms;
-					this.TransformCache = TransformCache;
+				public CurrentlyRecording(
+					ulong lastRecordedSampleNumber,
+					Dictionary<Transform, AnimationData> currentlyRecordingTransforms,
+					List<Transform> transformCache
+				) {
+					this.LastRecordedSampleNumber = lastRecordedSampleNumber;
+					this.CurrentlyRecordingTransforms = currentlyRecordingTransforms;
+					this.TransformCache = transformCache;
 				}
 				
 				public ulong LastRecordedSampleNumber { get; set; }
@@ -121,10 +116,10 @@ namespace UnityGLTF.Timeline
 
 			public sealed class RecordingFinished : RecorderState
 			{
-				public RecordingFinished(ulong LastRecordedSampleNumber,
-					Dictionary<Transform, AnimationData> RecordedTransforms) {
-					this.LastRecordedSampleNumber = LastRecordedSampleNumber;
-					this.RecordedTransforms = RecordedTransforms;
+				public RecordingFinished(ulong lastRecordedSampleNumber,
+					Dictionary<Transform, AnimationData> recordedTransforms) {
+					this.LastRecordedSampleNumber = lastRecordedSampleNumber;
+					this.RecordedTransforms = recordedTransforms;
 				}
 				public ulong LastRecordedSampleNumber { get; init; }
 				public Dictionary<Transform, AnimationData> RecordedTransforms { get; init; }
@@ -211,9 +206,9 @@ namespace UnityGLTF.Timeline
 			}
 			
 			var recordingState = new RecorderState.CurrentlyRecording(
-				LastRecordedSampleNumber: 0,
-				CurrentlyRecordingTransforms: recordingTransforms,
-				TransformCache: transformCache
+				lastRecordedSampleNumber: 0,
+				currentlyRecordingTransforms: recordingTransforms,
+				transformCache: transformCache
 			);
 			transformCache.Clear();
 			
