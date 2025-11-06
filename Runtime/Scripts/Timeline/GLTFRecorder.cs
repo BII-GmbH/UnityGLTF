@@ -117,7 +117,8 @@ namespace UnityGLTF.Timeline
 			public sealed class RecordingFinished : RecorderState
 			{
 				public RecordingFinished(ulong lastRecordedSampleNumber,
-					Dictionary<Transform, AnimationData> recordedTransforms) {
+					Dictionary<Transform, AnimationData> recordedTransforms
+				) {
 					this.LastRecordedSampleNumber = lastRecordedSampleNumber;
 					this.RecordedTransforms = recordedTransforms;
 				}
@@ -136,7 +137,9 @@ namespace UnityGLTF.Timeline
 		/// <summary>
 		/// Application Time when the most recent sample was recorded
 		/// </summary>;
-		public TimeSpan? LastRecordedTime => _recorderState is RecorderState.CurrentlyRecording rec ? sampleIndexToTimeOffset(rec.LastRecordedSampleNumber) : null;
+		public TimeSpan? LastRecordedTime => _recorderState is RecorderState.CurrentlyRecording rec
+			? sampleIndexToTimeOffset(rec.LastRecordedSampleNumber)
+			: null;
 
 		public TimeSpan RecordingStartTime => recorderData.AnimationStartOffset;
 		

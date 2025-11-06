@@ -17,7 +17,7 @@ namespace UnityGLTF.Timeline.Samplers
 
         internal VisibilityTrack startNewAnimationTrackAt(AnimationData data, ulong time) {
             // pass null as time here to force manual initial sample recording
-            var track = new VisibilityTrack(data, this, sampleIndex: null);
+            var track = new VisibilityTrack(data, this, initialSampleIndex: null);
             
             
             if(time == 0)
@@ -47,8 +47,8 @@ namespace UnityGLTF.Timeline.Samplers
 
     internal sealed class VisibilityTrack : BaseAnimationTrack<GameObject, bool>
     {
-        public VisibilityTrack(AnimationData tr, VisibilitySampler plan, ulong? sampleIndex) :
-            base(tr, plan, sampleIndex, plan.DataComparer) { }
+        public VisibilityTrack(AnimationData tr, VisibilitySampler plan, ulong? initialSampleIndex) :
+            base(tr, plan, initialSampleIndex, plan.DataComparer) { }
 
         internal void recordVisibilityAt(ulong time, bool visible) => recordSampleIfChanged(time, visible);
     }
