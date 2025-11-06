@@ -72,17 +72,17 @@ namespace UnityGLTF.Timeline
         private TData? secondToLastValue => samples.Count > 1 ? samples[^2].Value : default;
         private bool hasSecondToLastValue => samples.Count > 1;
 
-        /// <param name="sampleIndex">
+        /// <param name="initialSampleIndex">
         /// The sample index to record an initial sample at.
         /// Optional so that the initial sample recording can be skipped and customized for example for visibility sampling.
         /// </param>
-        protected BaseAnimationTrack(AnimationData tr, AnimationSampler<TObject, TData> plan, ulong? sampleIndex, IEqualityComparer<TData> dataComparer) {
+        protected BaseAnimationTrack(AnimationData tr, AnimationSampler<TObject, TData> plan, ulong? initialSampleIndex, IEqualityComparer<TData> dataComparer) {
             this.animationData = tr;
             this.sampler = plan;
             this.dataComparer = dataComparer;
             samples = new List<(ulong, TData)>();
-            if(sampleIndex != null)
-                SampleIfChanged(sampleIndex.Value);
+            if(initialSampleIndex != null)
+                SampleIfChanged(initialSampleIndex.Value);
             
             recordSampleIfChangedMarker = new ProfilerMarker($"BaseAnimationTrack<{typeof(TObject).Name}, {typeof(TData).Name}> - recordSampleIfChanged"); 
         }
@@ -161,7 +161,12 @@ namespace UnityGLTF.Timeline
 
     internal sealed class AnimationTrackImpl<TObject, TData> : BaseAnimationTrack<TObject, TData> where TObject : Object
     {
-        public AnimationTrackImpl(AnimationData tr, AnimationSampler<TObject, TData> plan, ulong sampleIndex, IEqualityComparer<TData> dataComparer) : base(tr, plan, sampleIndex, dataComparer) { }
+        public AnimationTrackImpl(
+            AnimationData tr,
+            AnimationSampler<TObject, TData> plan,
+            ulong initialSampleIndex,
+            IEqualityComparer<TData> dataComparer
+        ) : base(tr, plan, initialSampleIndex, dataComparer) { }
     }
 
     
