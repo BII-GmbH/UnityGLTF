@@ -66,7 +66,7 @@ namespace UnityGLTF
 
 			
 			var frameCount = (ulong) Math.Ceiling(clip.length / timeStep.TotalSeconds);
-			var time = 0ul;
+			
 
 #if UNITY_2020_1_OR_NEWER
 			// This seems to not properly cleanup when exporting animation from inside a prefab asset
@@ -99,42 +99,43 @@ namespace UnityGLTF
 
 			// first frame
 			foreach (var rig in rigs) rig.UpdatePreviewGraph(playableGraph);
-			AnimationMode.SamplePlayableGraph(playableGraph, 0, time);
-
+			AnimationMode.SamplePlayableGraph(playableGraph, 0, 0.0f);
+			
+			var sampleIndex = 0ul;
 			// for Animation Rigging its often desired to have one complete loop first, so we need to prewarm to have a nice exportable animation
 			var prewarm = rigs.Length > 0 && clip.isLooping;
 			if (prewarm)
 			{
-				while (time + 1 < frameCount)
+				while (sampleIndex + 1 < frameCount)
 				{
-					time += 1;
+					sampleIndex += 1;
 					foreach (var rig in rigs) rig.UpdatePreviewGraph(playableGraph);
-					AnimationMode.SamplePlayableGraph(playableGraph, 0, time);
+					AnimationMode.SamplePlayableGraph(playableGraph, 0, (float) (sampleIndex * timeStep).TotalSeconds);
 				}
 
 				// reset time to the start
-				time = 0;
+				sampleIndex = 0;
 			}
 			
 			recorder.StartRecording();
 
-			while (time + 1 < frameCount)
+			while (sampleIndex + 1 < frameCount)
 			{
-				time += 1;
+				sampleIndex += 1;
 				foreach (var rig in rigs) rig.UpdatePreviewGraph(playableGraph);
-				AnimationMode.SamplePlayableGraph(playableGraph, 0, (float) (time * timeStep).TotalSeconds);
-				recorder.UpdateRecording(time * timeStep);
+				AnimationMode.SamplePlayableGraph(playableGraph, 0, (float) (sampleIndex * timeStep).TotalSeconds);
+				recorder.UpdateRecording(sampleIndex * timeStep);
 			}
 
 			// last frame
-			time = frameCount;
+			sampleIndex = frameCount;
 #if UNITY_2020_2_OR_NEWER
 			foreach (var rig in rigs) rig.UpdatePreviewGraph(playableGraph);
 #endif
 			// apply accurate clip length here, i do not want to spend time figuring out if this unity api
 			// would accept values slightly beyond the clip length due to rounding to time steps
 			AnimationMode.SamplePlayableGraph(playableGraph, 0, clip.length);
-			recorder.UpdateRecording(time * timeStep);
+			recorder.UpdateRecording(sampleIndex * timeStep);
 
 #if UNITY_2020_2_OR_NEWER
 			foreach (var rig in rigs) rig.StopPreview();
