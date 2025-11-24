@@ -74,7 +74,9 @@ namespace UnityGLTF.Timeline
 					recordTransformInWorldSpace,
 					recordVisibility,
 					recordBlendShapes,
-					recordAnimationPointer,
+					animatedMaterialColorCount: recordAnimationPointer 
+						? root.GetComponentsInChildren<Renderer>(includeInactive: true).Max(r => r.sharedMaterials.Length) 
+						: 0,
 					additionalSamplers
 				)
 			);

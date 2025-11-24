@@ -5,6 +5,10 @@ namespace UnityGLTF.Timeline.Samplers
 {
     internal sealed class BaseColorSampler : AnimationSampler<Material, Color?>
     {
+        private readonly int materialIndex;
+        
+        public BaseColorSampler(int materialIndex) => this.materialIndex = materialIndex;
+
         public override string PropertyName => "baseColorFactor";
 
         public override AnimationInterpolationType InterpolationType => AnimationInterpolationType.LINEAR;
@@ -15,9 +19,9 @@ namespace UnityGLTF.Timeline.Samplers
             if (!transform) 
                 return null;
             if (transform.TryGetComponent<MeshRenderer>(out var mr)) 
-                return mr.sharedMaterial;
+                return mr.sharedMaterials.Length > materialIndex ? mr.sharedMaterials[materialIndex] : null;
             if (transform.TryGetComponent<SkinnedMeshRenderer>(out var smr))
-                return smr.sharedMaterial;
+                return smr.sharedMaterials.Length > materialIndex ? smr.sharedMaterials[materialIndex] : null;
             return null;
         }
 

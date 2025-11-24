@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityGLTF.Timeline.Samplers;
 using Object = UnityEngine.Object;
@@ -16,14 +17,13 @@ namespace UnityGLTF.Timeline
         public VisibilitySampler? VisibilitySampler { get; private set; }
 
         /// all animation samplers that do not require special treatment - so currently all others, except visibility 
-        private readonly Dictionary<Type, AnimationSampler> registeredAnimationSamplers =
-            new Dictionary<Type, AnimationSampler>();
+        private readonly List<AnimationSampler> registeredAnimationSamplers = new();
 
         public static AnimationSamplers From(
             Func<Transform, bool> useWorldSpaceForTransform,
             bool sampleVisibility,
             bool recordBlendShapes,
-            bool recordAnimationPointer,
+            int animatedMaterialColorCount,
             IEnumerable<AnimationSampler>? additionalSamplers = null
         ) {
             var otherSamplers = new List<AnimationSampler>{
@@ -34,9 +34,10 @@ namespace UnityGLTF.Timeline
             if (recordBlendShapes) {
                 otherSamplers.Add(new BlendWeightSampler());
             }
-            if (recordAnimationPointer) {
+            if (animatedMaterialColorCount > 0) {
                 // TODO add other animation pointer export plans
-                otherSamplers.Add(new BaseColorSampler());
+                otherSamplers.AddRange(Enumerable.Range(0, animatedMaterialColorCount).Select(idx => new BaseColorSampler(idx)));
+                Debug.LogError("Supported number of materials: " + animatedMaterialColorCount);
             }
             if (additionalSamplers != null) {
                 otherSamplers.AddRange(additionalSamplers);
@@ -48,11 +49,11 @@ namespace UnityGLTF.Timeline
             VisibilitySampler = sampleVisibility ? new VisibilitySampler() : null;
 
             foreach (var sampler in otherSamplers) {
-                registeredAnimationSamplers.TryAdd(sampler.GetType(), sampler);
+                registeredAnimationSamplers.Add(sampler);
             }
         }
 
-        public IEnumerable<AnimationSampler> GetAdditionalAnimationSamplers() => registeredAnimationSamplers.Values;
+        public IEnumerable<AnimationSampler> GetAdditionalAnimationSamplers() => registeredAnimationSamplers;
     }
     
     internal interface AnimationSampler
