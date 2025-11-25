@@ -16,7 +16,9 @@ namespace UnityGLTF.Timeline
         /// to (0,0,0) when the object is invisible.
         public VisibilitySampler? VisibilitySampler { get; private set; }
 
-        /// all animation samplers that do not require special treatment - so currently all others, except visibility 
+        /// all animation samplers that do not require special treatment - so currently all others, except visibility
+        /// Important: This list must support multiple instances of the same type
+        /// of sampler so <see cref="BaseColorSampler"/> can work properly.
         private readonly List<AnimationSampler> registeredAnimationSamplers = new();
 
         public static AnimationSamplers From(
@@ -35,9 +37,8 @@ namespace UnityGLTF.Timeline
                 otherSamplers.Add(new BlendWeightSampler());
             }
             if (animatedMaterialColorCount > 0) {
-                // TODO add other animation pointer export plans
                 otherSamplers.AddRange(Enumerable.Range(0, animatedMaterialColorCount).Select(idx => new BaseColorSampler(idx)));
-                Debug.LogError("Supported number of materials: " + animatedMaterialColorCount);
+                // TODO add other animation pointer export plans
             }
             if (additionalSamplers != null) {
                 otherSamplers.AddRange(additionalSamplers);
