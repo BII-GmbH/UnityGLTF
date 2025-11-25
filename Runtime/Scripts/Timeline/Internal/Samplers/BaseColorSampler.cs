@@ -34,7 +34,9 @@ namespace UnityGLTF.Timeline.Samplers
         internal override Material getTarget(Transform transform) {
             // Note DG: Since this sampler may be instantiated multiple times for
             // different material indices, we need to keep an eye on performance here.
-            // This method should only be called once per animation track creation, but better be safe than sorry.
+            // This method is called once per sample per transform per unique sampler.
+            // Thus, the number of supported materials per renderer should be kept low.
+            // If they are very high, this profile marker is an indicator that optimizations may be needed.
             using var _ = getTargetMarker.Auto();
             if (!transform) 
                 return null;
