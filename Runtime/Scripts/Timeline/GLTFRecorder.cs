@@ -70,8 +70,13 @@ namespace UnityGLTF.Timeline
 				// so we can determine the maximum count of materials per mesh we need to support for animation.
 				// This should have little performance impact, since it only happens once, but just in case we profile it.
 				Profiler.BeginSample("GLTF Recorder: Count Animated Material Colors");
-				var renderers = root.GetComponentsInChildren<Renderer>(includeInactive: true);
-				animatedMaterialColorCount = renderers.Length == 0 ? 0 : renderers.Max(r => r.sharedMaterials.Length);
+				var renderersWithMaterials = root
+					.GetComponentsInChildren<Renderer>(includeInactive: true)
+					.Where(r => r.sharedMaterials != null)
+					.ToArray();
+				
+				animatedMaterialColorCount = renderersWithMaterials.Length == 0 ? 0 : renderersWithMaterials
+					.Max(r => r.sharedMaterials.Length);
 				Debug.Log("GLTF Recorder: Found a maximum of " + animatedMaterialColorCount + " materials per mesh to record.");
 				Profiler.EndSample();
 			}

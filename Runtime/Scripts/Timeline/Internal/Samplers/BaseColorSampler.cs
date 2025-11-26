@@ -16,14 +16,19 @@ namespace UnityGLTF.Timeline.Samplers
     /// The second generic parameter is the data type - which must be Color.
     ///
     /// Alternatives, such as having a list of materials as targets would be more complex to implement and use.
+    /// TODO DG for future: A cleaner solution in the future, such as supporting multiple targets per sampler.
     /// </remarks>
     internal sealed class BaseColorSampler : AnimationSampler<Material, Color?>
     {
         private static readonly ProfilerMarker getTargetMarker = new ProfilerMarker("BaseColorSampler - GetTarget");
         
         private readonly int materialIndex;
-        
-        public BaseColorSampler(int materialIndex) => this.materialIndex = materialIndex;
+
+        public BaseColorSampler(int materialIndex) {
+            if(materialIndex < 0)
+                throw new System.ArgumentOutOfRangeException(nameof(materialIndex), "materialIndex must be non-negative.");
+            this.materialIndex = materialIndex;
+        }
 
         public override string PropertyName => "baseColorFactor";
 
