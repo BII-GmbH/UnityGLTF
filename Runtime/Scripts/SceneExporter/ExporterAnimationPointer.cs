@@ -340,27 +340,9 @@ namespace UnityGLTF
 						Tsampler.Output = ExportAccessor(Array.ConvertAll(values, e => (Vector3)e));
 					break;
 				case Vector4 _:
-					var vector4Values = Array.ConvertAll(values, e => (Vector4)e);
 					if (!isTextureTransform)
 					{
-						if (propertyName == "_PlanePosition" || propertyName == "_PlaneNormal")
-						{
-							// Custom cutting-plane properties are exported via KHR_animation_pointer,
-							// so they must use the same Unity -> glTF handedness conversion as node translations.
-							Tsampler.Output = ExportAccessor(SchemaExtensions.ConvertVector4CoordinateSpaceAndCopy(
-								vector4Values,
-								new GLTF.Math.Vector4(
-									SchemaExtensions.CoordinateSpaceConversionScale.X,
-									SchemaExtensions.CoordinateSpaceConversionScale.Y,
-									SchemaExtensions.CoordinateSpaceConversionScale.Z,
-									1f
-								)
-							));
-						}
-						else
-						{
-							Tsampler.Output = ExportAccessor(vector4Values);
-						}
+						Tsampler.Output = ExportAccessor(Array.ConvertAll(values, e => (Vector4)e));
 					}
 					else
 					{
